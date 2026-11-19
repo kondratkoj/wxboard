@@ -1,0 +1,523 @@
+{
+ "__base": 1795092780,
+ "data": {
+  "__byParam": "location",
+  "variants": {
+   "KRUE": {
+    "status": "Success",
+    "data": {
+     "geojson": [
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000000",
+          "number": "11/012",
+          "location": "RUE",
+          "icaoLocation": "KRUE",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-19T14:53:00.000Z",
+          "effectiveEnd": "2026-11-22T12:53:00.000Z",
+          "estimated": "false",
+          "text": "RWY 07/25 CLSD 1400-2000 DLY (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!RUE 11/012 RUE RWY 07/25 CLSD 1400-2000 DLY (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000001",
+          "number": "10/044",
+          "location": "RUE",
+          "icaoLocation": "KRUE",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-09T12:53:00.000Z",
+          "effectiveEnd": "2026-11-24T12:53:00.000Z",
+          "estimated": "false",
+          "text": "OBST TOWER LGT (ASR 1234567) 351500N0930500W (5NM W RUE) 1049FT (300FT AGL) U/S (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!RUE 10/044 RUE OBST TOWER LGT (ASR 1234567) 351500N0930500W (5NM W RUE) 1049FT (300FT AGL) U/S (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000002",
+          "number": "11/009",
+          "location": "RUE",
+          "icaoLocation": "KRUE",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-17T12:53:00.000Z",
+          "effectiveEnd": null,
+          "estimated": "false",
+          "text": "NAV RNAV (GPS) RWY 07 LPV DA NA (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!RUE 11/009 RUE NAV RNAV (GPS) RWY 07 LPV DA NA (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000003",
+          "number": "11/014",
+          "location": "RUE",
+          "icaoLocation": "KRUE",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-19T09:53:00.000Z",
+          "effectiveEnd": "2026-11-20T18:53:00.000Z",
+          "estimated": "false",
+          "text": "RWY 07 REIL U/S (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!RUE 11/014 RUE RWY 07 REIL U/S (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000004",
+          "number": "11/015",
+          "location": "RUE",
+          "icaoLocation": "KRUE",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-19T11:53:00.000Z",
+          "effectiveEnd": "2026-11-20T08:53:00.000Z",
+          "estimated": "false",
+          "text": "SVC FUEL 100LL NOT AVBL (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!RUE 11/015 RUE SVC FUEL 100LL NOT AVBL (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000005",
+          "number": "11/016",
+          "location": "RUE",
+          "icaoLocation": "KRUE",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-19T06:53:00.000Z",
+          "effectiveEnd": "2026-11-19T16:53:00.000Z",
+          "estimated": "true",
+          "text": "TWY B CLSD (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!RUE 11/016 RUE TWY B CLSD (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000006",
+          "number": "11/017",
+          "location": "RUE",
+          "icaoLocation": "KRUE",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-19T13:53:00.000Z",
+          "effectiveEnd": "2026-11-19T22:53:00.000Z",
+          "estimated": "false",
+          "text": "AD AP BCN U/S (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!RUE 11/017 RUE AD AP BCN U/S (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000007",
+          "number": "11/018",
+          "location": "RUE",
+          "icaoLocation": "KRUE",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-19T10:53:00.000Z",
+          "effectiveEnd": "2026-11-21T12:53:00.000Z",
+          "estimated": "false",
+          "text": "OBST CRANE (ASR UNKNOWN) 351600N0930400W (1NM N RUE) 520FT (180FT AGL) FLAGGED AND LGTD (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!RUE 11/018 RUE OBST CRANE (ASR UNKNOWN) 351600N0930400W (1NM N RUE) 520FT (180FT AGL) FLAGGED AND LGTD (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "KLIT": {
+    "status": "Success",
+    "data": {
+     "geojson": [
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000008",
+          "number": "11/150",
+          "location": "LIT",
+          "icaoLocation": "KLIT",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-19T09:53:00.000Z",
+          "effectiveEnd": "2026-11-19T21:53:00.000Z",
+          "estimated": "false",
+          "text": "TWY C CLSD (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!LIT 11/150 LIT TWY C CLSD (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000009",
+          "number": "11/161",
+          "location": "LIT",
+          "icaoLocation": "KLIT",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-20T08:53:00.000Z",
+          "effectiveEnd": "2026-11-20T18:53:00.000Z",
+          "estimated": "false",
+          "text": "AD AP BIRD ACT (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!LIT 11/161 LIT AD AP BIRD ACT (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   },
+   "KHRO": {
+    "status": "Success",
+    "data": {
+     "geojson": []
+    }
+   },
+   "HRO": {
+    "status": "Success",
+    "data": {
+     "geojson": []
+    }
+   },
+   "RUE": {
+    "status": "Success",
+    "data": {
+     "geojson": []
+    }
+   },
+   "LIT": {
+    "status": "Success",
+    "data": {
+     "geojson": []
+    }
+   },
+   "default": {
+    "status": "Success",
+    "data": {
+     "geojson": [
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000010",
+          "number": "11/020",
+          "location": "DDH",
+          "icaoLocation": "KDDH",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-19T07:53:00.000Z",
+          "effectiveEnd": "2026-11-21T04:53:00.000Z",
+          "estimated": "true",
+          "text": "RWY 18/36 CLSD (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!DDH 11/020 DDH RWY 18/36 CLSD (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000011",
+          "number": "6/1234",
+          "location": "ZME",
+          "icaoLocation": "KZME",
+          "classification": "FDC",
+          "effectiveStart": "2026-11-19T14:53:00.000Z",
+          "effectiveEnd": "2026-11-20T00:53:00.000Z",
+          "estimated": "false",
+          "text": "AR..AIRSPACE RUSSELLVILLE, AR..TEMPORARY FLIGHT RESTRICTIONS WI AN AREA DEFINED AS 3NM RADIUS OF 351840N0931400W SFC-2000FT. PURSUANT TO 14 CFR SECTION 91.137(A)(1) (DEMO DATA)",
+          "lowerLimit": "SFC",
+          "upperLimit": "2000FT"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!FDC 6/1234 ZME AR..AIRSPACE RUSSELLVILLE, AR..TEMPORARY FLIGHT RESTRICTIONS WI AN AREA DEFINED AS 3NM RADIUS OF 351840N0931400W SFC-2000FT. PURSUANT TO 14 CFR SECTION 91.137(A)(1) (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      },
+      {
+       "type": "Feature",
+       "properties": {
+        "coreNOTAMData": {
+         "notam": {
+          "id": "NMS_ID_1795000000000012",
+          "number": "10/044",
+          "location": "RUE",
+          "icaoLocation": "KRUE",
+          "classification": "DOM",
+          "effectiveStart": "2026-11-09T12:53:00.000Z",
+          "effectiveEnd": "2026-11-24T12:53:00.000Z",
+          "estimated": "false",
+          "text": "OBST TOWER LGT (ASR 1234567) 351500N0930500W (5NM W RUE) 1049FT (300FT AGL) U/S (DEMO DATA)"
+         },
+         "notamTranslation": [
+          {
+           "type": "LOCAL_FORMAT",
+           "simpleText": "!RUE 10/044 RUE OBST TOWER LGT (ASR 1234567) 351500N0930500W (5NM W RUE) 1049FT (300FT AGL) U/S (DEMO DATA)"
+          }
+         ]
+        }
+       },
+       "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+         {
+          "type": "Point",
+          "coordinates": [
+           -93.1,
+           35.26
+          ]
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  }
+ }
+}

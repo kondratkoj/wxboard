@@ -1,0 +1,13 @@
+{
+  "name": "wxboard",
+  "version": "1.0.0",
+  "description": "Personal preflight weather board: METAR, TAF, PIREPs, SIGMET/CWA/G-AIRMET, TFRs, NOTAMs, NWS forecast",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "demo": "node server.js --demo",
+    "fixtures": "node tools/make-fixtures.js"
+  },
+  "engines": { "node": ">=18" }
+}

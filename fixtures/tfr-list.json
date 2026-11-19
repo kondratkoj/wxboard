@@ -1,0 +1,21 @@
+{
+ "__base": 1795092780,
+ "data": [
+  {
+   "notam_id": "6/9999",
+   "type": "HAZARDS",
+   "facility": "ZME",
+   "state": "AR",
+   "description": "5NM W RUSSELLVILLE, AR, (DEMO DATA) Nuclear plant area",
+   "creation_date": "11/19/2026"
+  },
+  {
+   "notam_id": "6/0284",
+   "type": "SPACE OPERATIONS",
+   "facility": "ZMA",
+   "state": "FL",
+   "description": "Cape Canaveral, FL (DEMO DATA)",
+   "creation_date": "11/18/2026"
+  }
+ ]
+}

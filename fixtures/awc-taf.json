@@ -1,0 +1,133 @@
+{
+ "__base": 1795092780,
+ "data": [
+  {
+   "icaoId": "KLIT",
+   "issueTime": "2026-11-19T11:20:00.000Z",
+   "validTimeFrom": 1795086000,
+   "validTimeTo": 1795172400,
+   "name": "Little Rock/Clinton Natl",
+   "rawTAF": "TAF KLIT 191120Z 1912/2012 VRB03KT P6SM SCT050 SCT250 FM191800 16008KT P6SM BKN040 TEMPO 1921/1924 4SM -RA BKN015 FM200300 18010G18KT 3SM -RA BR OVC008 (DEMO PERIODS)",
+   "lat": 34.7273,
+   "lon": -92.2358,
+   "fcsts": [
+    {
+     "timeFrom": 1795086000,
+     "timeTo": 1795107600,
+     "fcstChange": null,
+     "wdir": "VRB",
+     "wspd": 3,
+     "visib": "6+",
+     "clouds": [
+      {
+       "cover": "SCT",
+       "base": 5000
+      },
+      {
+       "cover": "SCT",
+       "base": 25000
+      }
+     ]
+    },
+    {
+     "timeFrom": 1795107600,
+     "timeTo": 1795140000,
+     "fcstChange": "FM",
+     "wdir": 160,
+     "wspd": 8,
+     "visib": "6+",
+     "clouds": [
+      {
+       "cover": "BKN",
+       "base": 4000
+      }
+     ]
+    },
+    {
+     "timeFrom": 1795118400,
+     "timeTo": 1795129200,
+     "fcstChange": "TEMPO",
+     "visib": 4,
+     "wxString": "-RA",
+     "clouds": [
+      {
+       "cover": "BKN",
+       "base": 1500
+      }
+     ]
+    },
+    {
+     "timeFrom": 1795140000,
+     "timeTo": 1795172400,
+     "fcstChange": "FM",
+     "wdir": 180,
+     "wspd": 10,
+     "wgst": 18,
+     "visib": 3,
+     "wxString": "-RA BR",
+     "clouds": [
+      {
+       "cover": "OVC",
+       "base": 800
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "icaoId": "KFSM",
+   "issueTime": "2026-11-19T11:40:00.000Z",
+   "validTimeFrom": 1795086000,
+   "validTimeTo": 1795172400,
+   "name": "Fort Smith (DEMO)",
+   "rawTAF": "TAF KFSM 191140Z 1912/2012 18006KT 2SM -RA BR OVC008 BECMG 1916/1918 5SM BKN025 PROB30 1922/2002 1SM TSRA OVC005CB (DEMO DATA)",
+   "lat": 35.3366,
+   "lon": -94.3674,
+   "fcsts": [
+    {
+     "timeFrom": 1795086000,
+     "timeTo": 1795100400,
+     "fcstChange": null,
+     "wdir": 180,
+     "wspd": 6,
+     "visib": 2,
+     "wxString": "-RA BR",
+     "clouds": [
+      {
+       "cover": "OVC",
+       "base": 800
+      }
+     ]
+    },
+    {
+     "timeFrom": 1795100400,
+     "timeTo": 1795172400,
+     "timeBec": 1795107600,
+     "fcstChange": "BECMG",
+     "visib": 5,
+     "clouds": [
+      {
+       "cover": "BKN",
+       "base": 2500
+      }
+     ]
+    },
+    {
+     "timeFrom": 1795122000,
+     "timeTo": 1795136400,
+     "fcstChange": "PROB",
+     "probability": 30,
+     "visib": 1,
+     "wxString": "TSRA",
+     "clouds": [
+      {
+       "cover": "OVC",
+       "base": 500,
+       "type": "CB"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

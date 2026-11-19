@@ -1,0 +1,88 @@
+{
+ "__base": 1795092780,
+ "data": {
+  "type": "FeatureCollection",
+  "features": [
+   {
+    "type": "Feature",
+    "geometry": {
+     "type": "Polygon",
+     "coordinates": [
+      [
+       [
+        -94.8,
+        34.6
+       ],
+       [
+        -93.6,
+        34.6
+       ],
+       [
+        -93.6,
+        35.6
+       ],
+       [
+        -94.8,
+        35.6
+       ],
+       [
+        -94.8,
+        34.6
+       ]
+      ]
+     ]
+    },
+    "properties": {
+     "icaoId": "KKCI",
+     "airSigmetType": "SIGMET",
+     "alphaChar": "C",
+     "hazard": "CONVECTIVE",
+     "seriesId": "22C",
+     "validTimeFrom": 1795092180,
+     "validTimeTo": 1795099980,
+     "severity": null,
+     "altitudeHi1": 38000,
+     "rawAirSigmet": "CONVECTIVE SIGMET 22C VALID UNTIL 1455Z AR OK FROM 30W FSM-... AREA TS MOV FROM 24025KT. TOPS TO FL380. (DEMO DATA)"
+    }
+   },
+   {
+    "type": "Feature",
+    "geometry": {
+     "type": "Polygon",
+     "coordinates": [
+      [
+       [
+        -80,
+        40
+       ],
+       [
+        -78,
+        40
+       ],
+       [
+        -78,
+        42
+       ],
+       [
+        -80,
+        42
+       ],
+       [
+        -80,
+        40
+       ]
+      ]
+     ]
+    },
+    "properties": {
+     "icaoId": "KKCI",
+     "airSigmetType": "AIRMET",
+     "hazard": "TURB",
+     "validTimeFrom": 1795092780,
+     "validTimeTo": 1795114380,
+     "rawAirSigmet": "FAR AWAY - should be filtered out"
+    }
+   }
+  ]
+ }
+}

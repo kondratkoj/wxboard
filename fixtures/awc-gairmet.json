@@ -1,0 +1,106 @@
+{
+ "__base": 1795092780,
+ "data": {
+  "type": "FeatureCollection",
+  "features": [
+   {
+    "type": "Feature",
+    "geometry": {
+     "type": "Polygon",
+     "coordinates": [
+      [
+       [
+        -95,
+        35
+       ],
+       [
+        -92.5,
+        35
+       ],
+       [
+        -92.5,
+        36.6
+       ],
+       [
+        -95,
+        36.6
+       ],
+       [
+        -95,
+        35
+       ]
+      ]
+     ]
+    },
+    "properties": {
+     "product": "SIERRA",
+     "hazard": "IFR",
+     "tag": "1S",
+     "forecast": "0",
+     "validTime": "2026-11-19T15:00:00Z",
+     "dueTo": "CIG BLW 010/VIS BLW 3SM PCPN/BR (DEMO DATA)"
+    }
+   },
+   {
+    "type": "Feature",
+    "geometry": {
+     "type": "Polygon",
+     "coordinates": [
+      [
+       [
+        -95,
+        35
+       ],
+       [
+        -92.5,
+        35
+       ],
+       [
+        -92.5,
+        36.6
+       ],
+       [
+        -95,
+        36.6
+       ],
+       [
+        -95,
+        35
+       ]
+      ]
+     ]
+    },
+    "properties": {
+     "product": "SIERRA",
+     "hazard": "IFR",
+     "tag": "1S",
+     "forecast": "3",
+     "validTime": "2026-11-19T18:00:00Z",
+     "dueTo": "CIG BLW 010/VIS BLW 3SM PCPN/BR (DEMO DATA)"
+    }
+   },
+   {
+    "type": "Feature",
+    "geometry": {
+     "type": "LineString",
+     "coordinates": [
+      [
+       -96,
+       35.2
+      ],
+      [
+       -90,
+       35.8
+      ]
+     ]
+    },
+    "properties": {
+     "product": "ZULU",
+     "hazard": "FZLVL",
+     "forecast": "0",
+     "validTime": "2026-11-19T15:00:00Z"
+    }
+   }
+  ]
+ }
+}

@@ -1,0 +1,65 @@
+{
+ "__base": 1795092780,
+ "data": [
+  {
+   "icaoId": "KRUE",
+   "lat": 35.2573,
+   "lon": -93.095,
+   "site": "Russellville Rgnl"
+  },
+  {
+   "icaoId": "KHRO",
+   "lat": 36.2673,
+   "lon": -93.1566,
+   "site": "Harrison/Boone Cnty"
+  },
+  {
+   "icaoId": "KLIT",
+   "lat": 34.7273,
+   "lon": -92.2358,
+   "site": "Little Rock/Clinton Natl"
+  },
+  {
+   "icaoId": "KFSM",
+   "lat": 35.3366,
+   "lon": -94.3674,
+   "site": "Fort Smith Rgnl (DEMO)"
+  },
+  {
+   "icaoId": "KBPK",
+   "lat": 36.3689,
+   "lon": -92.4705,
+   "site": "Mountain Home (DEMO)"
+  },
+  {
+   "icaoId": "KXNA",
+   "lat": 36.2819,
+   "lon": -94.3068,
+   "site": "NW Arkansas Natl (DEMO)"
+  },
+  {
+   "icaoId": "KCVK",
+   "lat": 35,
+   "lon": -93,
+   "site": "Fake Field (DEMO)"
+  },
+  {
+   "icaoId": "KMEM",
+   "lat": 35.04,
+   "lon": -89.98,
+   "site": "Memphis (DEMO coords)"
+  },
+  {
+   "icaoId": "KSGF",
+   "lat": 37.24,
+   "lon": -93.39,
+   "site": "Springfield (DEMO coords)"
+  },
+  {
+   "icaoId": "KTUL",
+   "lat": 36.2,
+   "lon": -95.89,
+   "site": "Tulsa (DEMO coords)"
+  }
+ ]
+}

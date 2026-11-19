@@ -1,0 +1,9 @@
+{
+  "port": 8080,
+  "host": "127.0.0.1",
+  "contact": "your-email@example.com",
+  "defaultRadiusNm": 30,
+  "nmsEnv": "prod",
+  "nmsClientId": "",
+  "nmsClientSecret": ""
+}

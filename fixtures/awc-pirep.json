@@ -1,0 +1,47 @@
+{
+ "__base": 1795092780,
+ "data": [
+  {
+   "receiptTime": "2026-11-19T13:08:00Z",
+   "obsTime": 1795093620,
+   "icaoId": "LIT",
+   "acType": "B738",
+   "lat": 34.4225,
+   "lon": -91.9212,
+   "fltLvl": 360,
+   "tbInt1": "NEG",
+   "rawOb": "LIT UA /OV LIT135020/TM 1307/FL360/TP B738/TB NEG 360-380/RM ZME",
+   "pirepType": "PIREP"
+  },
+  {
+   "receiptTime": "2026-11-19T12:40:00Z",
+   "obsTime": 1795091880,
+   "icaoId": "FSM",
+   "acType": "C172",
+   "lat": 35.4,
+   "lon": -94,
+   "fltLvl": 40,
+   "icgInt1": "LGT",
+   "icgType1": "RIME",
+   "icgBas1": 40,
+   "icgTop1": 50,
+   "rawOb": "FSM UA /OV FSM090015/TM 1238/FL040/TP C172/IC LGT RIME 040-050 (DEMO DATA)",
+   "pirepType": "PIREP"
+  },
+  {
+   "receiptTime": "2026-11-19T12:30:00Z",
+   "obsTime": 1795091280,
+   "icaoId": "RUE",
+   "acType": "B407",
+   "lat": 35.5,
+   "lon": -93.4,
+   "fltLvl": 25,
+   "tbInt1": "SEV",
+   "tbType1": "CHOP",
+   "tbBas1": 15,
+   "tbTop1": 30,
+   "rawOb": "RUE UUA /OV RUE300020/TM 1228/FL025/TP B407/TB SEV CHOP 015-030 (DEMO DATA)",
+   "pirepType": "Urgent PIREP"
+  }
+ ]
+}

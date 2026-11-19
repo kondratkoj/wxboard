@@ -1,0 +1,16 @@
+{
+ "__base": 1795092780,
+ "data": {
+  "properties": {
+   "forecast": "https://api.weather.gov/gridpoints/LZK/1,1/forecast",
+   "forecastHourly": "https://api.weather.gov/gridpoints/LZK/1,1/forecast/hourly",
+   "gridId": "LZK",
+   "relativeLocation": {
+    "properties": {
+     "city": "Russellville",
+     "state": "AR"
+    }
+   }
+  }
+ }
+}
