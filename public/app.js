@@ -113,26 +113,35 @@
   }
 
   // ---------- data ----------
+  let runSeq = 0;
+  let runCtrl = null;
   async function run(area, quiet = false) {
+    // Only the newest request may render; an older refresh still in flight is cancelled.
+    const seq = ++runSeq;
+    if (runCtrl) runCtrl.abort();
+    const ctrl = runCtrl = new AbortController();
     current = area;
     const qs = new URLSearchParams({ ids: area.ids, radius: area.radius, route: area.route ? '1' : '0' });
     history.replaceState(null, '', '?' + qs);
     if (!quiet) { $('#updated').innerHTML = '<span class="spin"></span> loading'; showLoader(area); }
     else $('#updated').innerHTML = '<span class="spin"></span> refreshing';
     try {
-      const res = await fetch('/api/brief?' + qs);
+      const res = await fetch('/api/brief?' + qs, { signal: ctrl.signal });
       const body = await res.json();
+      if (seq !== runSeq) return; // a newer brief was requested meanwhile
       if (!res.ok) throw new Error(body.error || res.statusText);
       lastBrief = body;
       decorateNotams(body);
       render(body);
       $('#updated').textContent = `Updated ${lt(Date.parse(body.generatedAt))} local`;
     } catch (e) {
-      showBanner(`Couldn't load: ${e.message}`, true);
+      if (seq !== runSeq) return; // superseded (including our own abort)
+      showBanner(`Couldn't load: ${esc(e.message)}`, true);
       $('#updated').textContent = 'load failed';
     } finally {
-      hideLoader();
+      if (seq === runSeq) { hideLoader(); runCtrl = null; }
     }
+    if (seq !== runSeq) return;
     clearTimeout(refreshTimer);
     refreshTimer = setTimeout(() => { if (!document.hidden) run(current, true); }, REFRESH_MS);
   }
@@ -1292,7 +1301,7 @@
     const hz = (geom, color, label) => {
       if (!geom) return;
       try {
-        L.geoJSON(geom, { style: { color, weight: 1.5, fillOpacity: 0.12 } }).bindTooltip(label).addTo(mapLayers);
+        L.geoJSON(geom, { style: { color, weight: 1.5, fillOpacity: 0.12 } }).bindTooltip(esc(label)).addTo(mapLayers);
       } catch {}
     };
     if (b.sigmets.ok) b.sigmets.data.filter((s) => hazShown(s.hazard)).forEach((s) => hz(s.geometry, /CONV/.test(s.hazard) ? '#ff4d4d' : '#ffb547', `${s.kind} ${s.hazard}`));
@@ -1303,7 +1312,7 @@
     if (b.metars.ok) b.metars.data.forEach((m) => {
       if (m.lat == null) return;
       L.circleMarker([m.lat, m.lon], { radius: 6, color: '#000', weight: 1, fillColor: CAT_COLORS[m.fltCat] || '#888', fillOpacity: 1 })
-        .bindTooltip(m.id, { permanent: true, direction: 'right', className: 'map-label', offset: [6, 0] })
+        .bindTooltip(esc(m.id), { permanent: true, direction: 'right', className: 'map-label', offset: [6, 0] })
         .bindPopup(`<b>${esc(m.id)}</b> ${esc(m.fltCat || '')}<br><span style="font-family:monospace">${esc(m.raw)}</span>`)
         .addTo(mapLayers);
     });
