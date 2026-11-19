@@ -3,6 +3,7 @@
   "host": "127.0.0.1",
   "contact": "your-email@example.com",
   "defaultRadiusNm": 30,
+  "allowedHosts": [],
   "nmsEnv": "prod",
   "nmsClientId": "",
   "nmsClientSecret": ""

@@ -31,9 +31,9 @@ node server.js
 
 Then open **http://localhost:8080**. Example: http://localhost:8080/?ids=KDFW%20KAUS&radius=50
 
-`node server.js --demo` runs with offline sample data, so you can see every panel populated. The demo data is not real weather, and the page shows a banner saying so.
+`node server.js --demo` runs with offline sample data, so you can see every panel populated. The sample data covers Arkansas and nearby airports (KLIT, KXNA, KFSM, KTUL, KMEM, KSGF, KHRO, KRUE…), so try http://localhost:8080/?ids=KLIT%20KXNA&radius=50. Other IDs show as not found. The demo data is not real weather, and the page shows a banner saying so.
 
-To use it from your phone on the same Wi-Fi, set `"host": "0.0.0.0"` in config.json, then browse to `http://<your-computer's-IP>:8080`. There's no login, so don't expose it to the internet as-is.
+To use it from your phone on the same Wi-Fi, set `"host": "0.0.0.0"` in config.json, then browse to `http://<your-computer's-IP>:8080`. Opening it by IP address, `localhost` or the computer's own name works. To use another name (for example a local DNS name), add it to `"allowedHosts"` in config.json; other names are refused, which blocks DNS-rebinding attacks from web pages. There's no login, so don't expose it to the internet as-is. Each client is limited to 30 briefs a minute.
 
 ## Data sources
 
@@ -105,4 +105,5 @@ fixtures/              demo data; tools/make-fixtures.js rebuilds it
 lib/notamStore.js      local NOTAM copy + sync scheduler
 tools/nms-test.js      checks your NMS-API credentials (no data pulled)
 tools/winds-test.js    checks the winds aloft feed
+test/                  unit tests (npm test, no network)
 ```

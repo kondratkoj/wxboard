@@ -1283,10 +1283,20 @@
   function drawMap(b) {
     const el = document.getElementById('map');
     if (!el || typeof L === 'undefined') { if (el) el.innerHTML = '<div class="none">Map library unavailable </div>'; return; }
-    if (map) { map.remove(); map = null; }
-    map = L.map(el, { zoomControl: true, attributionControl: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
-    mapLayers = L.layerGroup().addTo(map);
+    // Keep one Leaflet map for the page's life: re-rendering replaces #map, so move the existing map's
+    // container into its place instead of rebuilding the map (and losing tiles, zoom and pan).
+    let reused = false;
+    if (map) {
+      const box = map.getContainer();
+      if (box !== el) { el.replaceWith(box); }
+      mapLayers.clearLayers();
+      map.invalidateSize();
+      reused = true;
+    } else {
+      map = L.map(el, { zoomControl: true, attributionControl: true });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+      mapLayers = L.layerGroup().addTo(map);
+    }
 
     const pts = b.area.anchors.map((a) => [a.lat, a.lon]);
     const nm2m = 1852;
@@ -1323,8 +1333,10 @@
     });
 
     const bb = b.area.bbox;
-    mapBounds = [[bb.minLat, bb.minLon], [bb.maxLat, bb.maxLon]];
-    map.fitBounds(mapBounds, { padding: [10, 10] });
+    const newBounds = [[bb.minLat, bb.minLon], [bb.maxLat, bb.maxLon]];
+    // Re-fit only when the area changed, so a background refresh keeps your zoom and pan.
+    if (!reused || JSON.stringify(newBounds) !== JSON.stringify(mapBounds)) map.fitBounds(newBounds, { padding: [10, 10] });
+    mapBounds = newBounds;
   }
 
   // ---------- start ----------
