@@ -94,7 +94,21 @@ test('approval flow: request, wait, admin approves, sign in, brief', async () =>
   const id = users.byName('pilot1').id;
   assert.equal((await admin.req('/admin/action', { form: { action: 'approve', id } })).status, 403, 'needs the form token');
   const appr = await admin.req('/admin/action', { form: { action: 'approve', id, csrf: csrfFrom(page.text) } });
-  assert.match(appr.text, /approved/);
+  assert.equal(appr.status, 303, 'actions redirect back to the admin page');
+  assert.match(appr.location, /^\/admin\?m=/);
+  const shown = await admin.req(appr.location);
+  assert.match(shown.text, /approved/);
+  assert.doesNotMatch((await admin.req(appr.location)).text, /approved\. They can/, 'the message shows once');
+  assert.doesNotMatch((await browser().req(appr.location)).text, /approved\. They can/, 'and only to that admin');
+
+  // Reloading the page after making an invite code must not make another one.
+  const before = users.listInvites().length;
+  const inv = await admin.req('/admin/action', { form: { action: 'new-invite', id: '', csrf: csrfFrom(shown.text) } });
+  assert.equal(inv.status, 303);
+  const invPage = await admin.req(inv.location);
+  assert.match(invPage.text, /New invite code: [A-Z2-9]{10}/);
+  await admin.req(inv.location); // the browser's reload is a plain GET now
+  assert.equal(users.listInvites().length, before + 1);
 
   assert.equal((await login(visitor, 'pilot1', 'Approach-mins-one')).status, 303);
   const brief = (await visitor.req('/api/brief?ids=KLIT')).json();
