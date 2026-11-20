@@ -315,6 +315,7 @@ details.napt details.ncat { margin-left: 4px; }
 .tr-row:first-of-type { border-top: 0; }
 .tr-id .small { margin-top: 2px; }
 .tr-tiles { display: flex; gap: 4px; overflow-x: auto; }
+.tr-tile.tr-latest { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tr-tile { min-width: 58px; text-align: center; border-radius: 6px; padding: 4px 4px; line-height: 1.25; border: 1px solid #ffffff14; }
 .risk-bg-green { background: #3fbf5f2b; } .risk-bg-amber { background: #ffb54733; } .risk-bg-critical { background: #ff8a3d55; } .risk-bg-red { background: #ff4d4d55; }
 .cat-bg-VFR { background: #3fbf5f2b; } .cat-bg-MVFR { background: #4f8dff33; } .cat-bg-IFR { background: #ff4d4d40; } .cat-bg-LIFR { background: #e05cff40; } .cat-bg-NA { background: #ffffff0d; }

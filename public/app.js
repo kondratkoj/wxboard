@@ -375,11 +375,12 @@
       const first = list[0], last = list[list.length - 1];
       const cs = (c) => (c == null ? 'none' : c.toLocaleString());
       const summary = `Ceiling ${cs(first.ceilingFt)} → ${cs(last.ceilingFt)} ${trendArrow(first.ceilingFt, last.ceilingFt)} · Vis ${first.visSM ?? '?'} → ${last.visSM ?? '?'} SM ${trendArrow(first.visSM, last.visSM)} · Wind ${wind(last.wdir, last.wspd, last.wgst)}`;
-      const tiles = list.map((m) => {
+      // Newest first, so the current observation is the first thing you see; older ones follow to the right.
+      const tiles = list.slice().reverse().map((m, i) => {
         const r = riskAt(m.ceilingFt, m.visSM, m.obsTime, a.lat, a.lon);
         const cls = r ? `risk-bg-${r.level}` : `cat-bg-${m.fltCat || 'NA'}`;
-        return `<div class="tr-tile ${cls}" title="${esc(m.raw)}">
-          <div class="mono small">${lt(m.obsTime)}</div>
+        return `<div class="tr-tile ${cls}${i === 0 ? ' tr-latest' : ''}" ${popAttr(m.raw)}>
+          <div class="mono small">${i === 0 ? '<b>Latest</b> ' : ''}${lt(m.obsTime)}</div>
           <div class="mono">${m.ceilingFt == null ? '—' : Math.round(m.ceilingFt / 100).toString().padStart(3, '0')}</div>
           <div class="mono small">${m.visSM ?? '?'}SM${m.wx ? ' ' + esc(m.wx) : ''}</div>
         </div>`;
@@ -387,7 +388,7 @@
       return `<div class="tr-row"><div class="tr-id"><b class="mono">${esc(a.id)}</b><div class="muted small">${summary}</div></div><div class="tr-tiles">${tiles}</div></div>`;
     }).join('');
     const legend = mins.enabled ? 'Colored by your minimums (Green / Amber / Amber Crit / Red).' : 'Colored by flight category.';
-    return panel('trend', 'METAR trend (6 hr)', null, `<div class="muted small" style="padding:8px 14px 0">${legend} Each tile: local time, ceiling (hundreds of ft), visibility. Hover for the raw METAR.</div>${rows}`);
+    return panel('trend', 'METAR trend (6 hr)', null, `<div class="muted small" style="padding:8px 14px 0">${legend} Newest first. Each tile: local time, ceiling (hundreds of ft), visibility. Hover for the raw METAR.</div>${rows}`);
   }
 
   // Small "i" button with a popover. Hover shows it on desktop; tap/click pins it (touch screens).
