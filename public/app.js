@@ -1426,7 +1426,9 @@
       reused = true;
     } else {
       map = L.map(el, { zoomControl: true, attributionControl: true });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+      // OpenStreetMap's tile policy requires a Referer. The site's own policy (same-origin) would strip it, so the
+      // tile images alone send the site's origin (https://host/, no path or query).
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, attribution: '&copy; OpenStreetMap contributors', referrerPolicy: 'strict-origin-when-cross-origin' }).addTo(map);
       mapLayers = L.layerGroup().addTo(map);
     }
 
