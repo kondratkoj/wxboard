@@ -795,7 +795,7 @@
           <b>Observed</b><span class="${stale ? 'stale' : ''}">${zt(m.obsTime)} · ${ago(m.obsTime)}${stale ? ' · OLD' : ''}</span>
           <b>Shift <span class="muted">${hhL(outlookStart())}–${hhL(outlookStart() + outlook.hours * 3600e3)}</span></b><span>${shiftBadge(b, { ...a, lat, lon, id })}</span>
           <b>TAF next 6h</b><span>${t ? `${cat(t.worstNext6)}${t.worstNext6Tempo && t.worstNext6Tempo !== t.worstNext6 ? ` <span class="muted small">TEMPO/PROB</span> ${cat(t.worstNext6Tempo)}` : ''}${rTaf ? ' ' + riskBadge(rTaf) : ''}` : '<span class="muted">No TAF</span>'}</span>
-          ${rNow ? `<b>Minimums</b><span>${riskBadge(rNow)} <span class="muted small">${esc(rNow.lim.label.split(',')[0])} ${rNow.lim.ceil}-${rNow.lim.vis}</span>${mins.terrain === 'non' && MN.maybeMountainous(lat, lon) ? ' <span class="tag warn" title="This airport may be inside a 14 CFR Part 95 designated mountainous area. Check, and switch Terrain to Mountainous in Minimums if so.">MTN?</span>' : ''}</span>` : ''}
+          ${rNow ? `<b ${popAttr('The latest METAR checked against your minimums. The Shift and TAF rows above are the forecast.')}>Minimums now</b><span>${riskBadge(rNow)} <span class="muted small">${esc(rNow.lim.label.split(',')[0])} ${rNow.lim.ceil}-${rNow.lim.vis}</span>${mins.terrain === 'non' && MN.maybeMountainous(lat, lon) ? ' <span class="tag warn" title="This airport may be inside a 14 CFR Part 95 designated mountainous area. Check, and switch Terrain to Mountainous in Minimums if so.">MTN?</span>' : ''}</span>` : ''}
           <b>Sun</b><span class="small">${sunLine(lat, lon)}</span>
         </div></div>`;
     }).join('')}</div>`;
