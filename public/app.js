@@ -10,6 +10,7 @@
   let current = null;     // { ids, radius, route }
   let lastBrief = null;
   let refreshTimer = null;
+  let map = null, mapLayers = null, mapBounds = null, mapNeedsFit = false;
   let windsHr = 0;
   let windsMax = (() => { try { return Number(localStorage.getItem('wxboard.windsMax')) || 12000; } catch { return 12000; } })();
   let notamScope = 'airport', notamFilter = '';
@@ -765,8 +766,13 @@
     if (b.area.unknown.length) notice = `<div class="banner err">Not found: ${esc(b.area.unknown.join(', '))}</div>`;
 
     const panels = {
-      map: panel('map', 'AWC GFA', null, '<div id="gfaSlot" class="gfa-slot"></div>',
-        `<a class="small" href="${esc(gfaUrl(b))}" target="_blank" rel="noopener noreferrer" ${popAttr('Open the Aviation Weather Center GFA in a new tab, centered on this area.')}>Open in new tab ↗</a>`),
+      map: panel('map', 'Map', null,
+        `<div class="tools"><div class="tabs">
+          <button class="tab" data-mapv="gfa" ${popAttr('Aviation Weather Center Graphical Forecasts for Aviation: radar, satellite, gridded clouds, icing, turbulence, Low Altitude mode.')}>AWC GFA</button>
+          <button class="tab" data-mapv="wx" ${popAttr('Your radius or route outline, METARs by flight category, PIREPs, TFRs and advisories (follows the hazard filter).')}>wxboard map</button></div></div>
+        <div id="gfaSlot" class="gfa-slot"></div><div id="map"></div>`,
+        `<a class="small map-r-gfa" href="${esc(gfaUrl(b))}" target="_blank" rel="noopener noreferrer" ${popAttr('Open the Aviation Weather Center GFA in a new tab, centered on this area.')}>Open in new tab ↗</a>`
+        + `<span class="muted small map-r-wx">${b.area.route ? 'Route corridor' : 'Radius'} ${b.area.radiusNm} nm</span>`),
       airports: renderAirports(b, anchorIds, metarById, tafById),
       stations: renderStations(b, anchorIds),
       notams: renderNotams(b),
@@ -804,7 +810,8 @@
     bindAirportFolds();
     bindOutlookTools();
     bindLayoutTools();
-    placeGfa(b);
+    drawMap(b);
+    setMapView(b);
     renderLinks();
   }
 
@@ -814,6 +821,7 @@
     sec.querySelector('.fold').textContent = on ? '▸' : '▾';
     layout.collapsed = layout.collapsed.filter((x) => x !== id);
     if (on) layout.collapsed.push(id);
+    if (id === 'map' && !on && mapView === 'wx') refreshMap();
   }
 
   function bindLayoutTools() {
@@ -871,6 +879,7 @@
       sec.removeAttribute('style');
       sec.classList.remove('dragging');
       document.body.classList.remove('is-dragging');
+      if (sec.dataset.id === 'map' && mapView === 'wx') refreshMap();
       layout.cols = [...document.querySelectorAll('#app .col')].map((c) => [...c.querySelectorAll(':scope > .panel')].map((p) => p.dataset.id));
       saveLayout();
     };
@@ -1306,7 +1315,7 @@
     });
   }
 
-  // ----- Hazards (with hazard-type filter) -----
+  // ----- Hazards (with hazard-type filter that also applies to the wxboard map) -----
   const HAZ_GROUPS = [
     ['conv', 'Convective'], ['turb', 'Turbulence'], ['ice', 'Icing'], ['fzlvl', 'Freezing level'], ['ifr', 'IFR'],
     ['mtn', 'Mountain obscuration'], ['llws', 'Low-level wind shear'], ['wind', 'Surface wind'], ['ash', 'Volcanic ash'], ['other', 'Other'],
@@ -1354,7 +1363,7 @@
         ${x.dueTo ? `<div class="small">${esc(x.dueTo)}</div>` : ''}</div>`;
     });
     const errs = ['sigmets', 'cwas', 'gairmets'].filter((k) => !b[k].ok).map((k) => `<div class="err">${k}: ${esc(b[k].error)}</div>`).join('');
-    const tools = chips ? `<div class="tools"><span class="muted small">Show:</span>${chips}${nHidden ? `<span class="muted small">${nHidden} hidden from the list and outlook</span>` : ''}</div>` : '';
+    const tools = chips ? `<div class="tools"><span class="muted small">Show:</span>${chips}${nHidden ? `<span class="muted small">${nHidden} hidden from the list, outlook and wxboard map</span>` : ''}</div>` : '';
     const body = parts.join('') || (all.length ? '<div class="none">All advisories here are hidden by your filter.</div>' : '<div class="none">None affecting this area</div>');
     return panel('advisories', 'Advisories (SIGMET · CWA · G-AIRMET)', all.length === shown.length ? all.length : `${shown.length}/${all.length}`, errs + tools + body);
   }
@@ -1401,6 +1410,102 @@
     return panel('forecast', 'Area forecast (NWS)', null, blocks);
   }
 
+  // ----- wxboard's own map (Leaflet) -----
+  const CAT_COLORS = { VFR: '#3fbf5f', MVFR: '#4f8dff', IFR: '#ff4d4d', LIFR: '#e05cff' };
+  function drawMap(b) {
+    const el = document.getElementById('map');
+    if (!el || typeof L === 'undefined') { if (el) el.innerHTML = '<div class="none">Map library unavailable </div>'; return; }
+    // Keep one Leaflet map for the page's life: re-rendering replaces #map, so move the existing map's
+    // container into its place instead of rebuilding the map (and losing tiles, zoom and pan).
+    let reused = false;
+    if (map) {
+      const box = map.getContainer();
+      if (box !== el) { el.replaceWith(box); }
+      mapLayers.clearLayers();
+      map.invalidateSize();
+      reused = true;
+    } else {
+      map = L.map(el, { zoomControl: true, attributionControl: true });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+      mapLayers = L.layerGroup().addTo(map);
+    }
+
+    const pts = b.area.anchors.map((a) => [a.lat, a.lon]);
+    const nm2m = 1852;
+    if (b.area.route && pts.length > 1) {
+      L.polyline(pts, { color: '#5fb3ff', weight: 2, dashArray: '6 6' }).addTo(mapLayers);
+      // corridor approximation: circles at each point + the line
+      pts.forEach((p) => L.circle(p, { radius: b.area.radiusNm * nm2m, color: '#5fb3ff', weight: 1, fill: false, dashArray: '2 6' }).addTo(mapLayers));
+    } else {
+      pts.forEach((p) => L.circle(p, { radius: b.area.radiusNm * nm2m, color: '#5fb3ff', weight: 1, fillOpacity: 0.04 }).addTo(mapLayers));
+    }
+
+    const hz = (geom, color, label) => {
+      if (!geom) return;
+      try {
+        L.geoJSON(geom, { style: { color, weight: 1.5, fillOpacity: 0.12 } }).bindTooltip(esc(label)).addTo(mapLayers);
+      } catch {}
+    };
+    if (b.sigmets.ok) b.sigmets.data.filter((s) => hazShown(s.hazard)).forEach((s) => hz(s.geometry, /CONV/.test(s.hazard) ? '#ff4d4d' : '#ffb547', `${s.kind} ${s.hazard}`));
+    if (b.cwas.ok) b.cwas.data.filter((c) => hazShown(c.hazard || c.raw)).forEach((c) => hz(c.geometry, '#ffb547', `CWA ${c.hazard || ''}`));
+    if (b.gairmets.ok) b.gairmets.data.filter((g) => hazShown(g.hazard)).forEach((g) => hz(g.geometry, '#c9a227', `G-AIRMET ${g.hazard}`));
+    if (b.tfrs.ok) b.tfrs.data.forEach((t) => hz(t.geometry, '#ff3b8b', `TFR ${t.number} ${t.type || ''}`));
+
+    if (b.metars.ok) b.metars.data.forEach((m) => {
+      if (m.lat == null) return;
+      L.circleMarker([m.lat, m.lon], { radius: 6, color: '#000', weight: 1, fillColor: CAT_COLORS[m.fltCat] || '#888', fillOpacity: 1 })
+        .bindTooltip(esc(m.id), { permanent: true, direction: 'right', className: 'map-label', offset: [6, 0] })
+        .bindPopup(`<b>${esc(m.id)}</b> ${esc(m.fltCat || '')}<br><span style="font-family:monospace">${esc(m.raw)}</span>`)
+        .addTo(mapLayers);
+    });
+    if (b.pireps.ok) b.pireps.data.forEach((p) => {
+      if (p.lat == null) return;
+      L.circleMarker([p.lat, p.lon], { radius: 4, color: p.urgent ? '#ff4d4d' : '#ffffff', weight: 2, fill: false })
+        .bindPopup(`<span style="font-family:monospace">${esc(p.raw)}</span>`).addTo(mapLayers);
+    });
+
+    const bb = b.area.bbox;
+    const newBounds = [[bb.minLat, bb.minLon], [bb.maxLat, bb.maxLon]];
+    // Re-fit only when the area changed, so a background refresh keeps your zoom and pan. While the map's tab
+    // is hidden it has no size to fit to, so the fit waits until the tab is shown.
+    if (!reused || JSON.stringify(newBounds) !== JSON.stringify(mapBounds)) {
+      if (map.getContainer().offsetWidth) map.fitBounds(newBounds, { padding: [10, 10] }); else mapNeedsFit = true;
+    }
+    mapBounds = newBounds;
+  }
+
+  // ----- Map panel tabs: AWC GFA | wxboard map (remembered per browser) -----
+  // Switching only hides the other map, so neither loses its view.
+  let mapView = (() => { try { return localStorage.getItem('wxboard.mapView') === 'wx' ? 'wx' : 'gfa'; } catch { return 'gfa'; } })();
+  function setMapView(b) {
+    const sec = document.querySelector('#app .panel[data-id=map]');
+    if (!sec) return;
+    const gfa = mapView === 'gfa';
+    sec.querySelectorAll('[data-mapv]').forEach((t) => t.classList.toggle('on', t.dataset.mapv === mapView));
+    sec.querySelectorAll('.map-r-gfa').forEach((e) => { e.hidden = !gfa; });
+    sec.querySelectorAll('.map-r-wx').forEach((e) => { e.hidden = gfa; });
+    const slot = document.getElementById('gfaSlot');
+    if (slot) slot.style.display = gfa ? '' : 'none';
+    const box = map ? map.getContainer() : document.getElementById('map');
+    if (box) box.style.display = gfa ? 'none' : '';
+    if (gfa) placeGfa(b || lastBrief);
+    else refreshMap();
+  }
+  function refreshMap() {
+    if (!map) return;
+    setTimeout(() => {
+      map.invalidateSize();
+      if (mapNeedsFit && mapBounds && map.getContainer().offsetWidth) { map.fitBounds(mapBounds, { padding: [10, 10] }); mapNeedsFit = false; }
+    }, 60);
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('#app .panel[data-id=map] [data-mapv]');
+    if (!t || t.dataset.mapv === mapView) return;
+    mapView = t.dataset.mapv === 'wx' ? 'wx' : 'gfa';
+    try { localStorage.setItem('wxboard.mapView', mapView); } catch {}
+    setMapView();
+  });
+
   // ----- Map: the Aviation Weather Center GFA, embedded -----
   // An embedded page reloads whenever it is moved in the page, and the board re-renders often (every refresh,
   // most settings). So one GFA frame lives for the whole visit, outside the board, and is laid over the Map
@@ -1438,6 +1543,7 @@
       document.body.appendChild(gfaWrap);
       requestAnimationFrame(syncGfa);
     }
+    if (mapView !== 'gfa') return; // loads the first time its tab is shown
     const url = gfaUrl(b, slot.clientWidth || 900);
     const key = url.replace(/&zoom=\d+/, '') + '|' + b.area.ids.join(' ') + '|' + b.area.radiusNm + '|' + b.area.route;
     if (key !== gfaKey) { gfaKey = key; gfaFrame.src = url; }
