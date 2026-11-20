@@ -666,10 +666,13 @@
     $('#app').innerHTML = [
       notice,
       `<div class="layout-tools">
-        <button class="btn sm" id="collapseAll">Minimize all</button>
-        <button class="btn sm" id="expandAll">Expand all</button>
-        <button class="btn sm" id="resetLayout" title="Put every panel back in its original place">Reset layout</button>
-        <span class="muted small">Drag ⠿ to move panels · ▾ to minimize</span>
+        <div id="links" class="links" aria-label="Other weather sites"></div>
+        <div class="lt-right">
+          <button class="btn sm" id="collapseAll">Minimize all</button>
+          <button class="btn sm" id="expandAll">Expand all</button>
+          <button class="btn sm" id="resetLayout" ${popAttr('Put every panel back in its original place')}>Reset layout</button>
+          <span class="muted small">Drag ⠿ to move panels · ▾ to minimize</span>
+        </div>
       </div>`,
       panel('summary', 'Conditions', null, renderCards(b, anchorIds, metarById, tafById) + renderAlerts(b)),
       `<div class="grid2">${cols.map((c, i) => `<div class="col" data-col="${i}">${c.map((id) => panels[id]).join('')}</div>`).join('')}</div>`,
@@ -1362,19 +1365,26 @@
   const LINKS_KEY = 'wxboard.links.v1';
   const LINKS_FOLD_KEY = 'wxboard.linksFolded';
   const DEFAULT_LINKS = [
-    { name: 'AWC GFA', url: 'https://aviationweather.gov/gfa/',
+    { name: 'AWC GFA', url: 'https://aviationweather.gov/gfa/', color: '#0085CA',
       info: 'Aviation Weather Center Graphical Forecasts for Aviation. Click the helicopter button for Low Altitude mode (the former HEMS Tool).' },
-    { name: 'ForeFlight Web', url: 'https://plan.foreflight.com/', info: 'ForeFlight on the web. Needs a ForeFlight subscription.' },
-    { name: 'Windy', url: 'https://www.windy.com/?{lat},{lon},8', info: 'Windy model forecasts, centered on your first airport.' },
-    { name: 'COD Sat/Radar', url: 'https://weather.cod.edu/satrad/', info: 'College of DuPage NEXLAB satellite and radar.' },
-    { name: '1800wxbrief', url: 'https://www.1800wxbrief.com/', info: 'Leidos Flight Service: standard briefings and flight plans.' },
+    { name: 'ForeFlight Web', url: 'https://plan.foreflight.com/', color: '#2B7BD6', info: 'ForeFlight on the web. Needs a ForeFlight subscription.' },
+    { name: 'Windy', url: 'https://www.windy.com/?{lat},{lon},8', color: '#A71C20', info: 'Windy model forecasts, centered on your first airport.' },
+    { name: 'COD Sat/Radar', url: 'https://weather.cod.edu/satrad/', color: '#1F6B3A', info: 'College of DuPage NEXLAB satellite and radar.' },
+    { name: '1800wxbrief', url: 'https://www.1800wxbrief.com/', color: '#850F88', info: 'Leidos Flight Service: standard briefings and flight plans.' },
   ];
   function loadLinks() {
-    try { const v = JSON.parse(localStorage.getItem(LINKS_KEY)); if (Array.isArray(v)) return v.filter((l) => l && l.name && safeUrl(l.url)); } catch {}
+    try {
+      const v = JSON.parse(localStorage.getItem(LINKS_KEY));
+      if (Array.isArray(v)) return v.filter((l) => l && l.name && safeUrl(l.url)).map((l) => {
+        const d = DEFAULT_LINKS.find((x) => x.url === l.url);
+        return { ...l, color: safeColor(l.color) || (d && d.color) || '', info: l.info || (d && d.info) || '' };
+      });
+    } catch {}
     return DEFAULT_LINKS.map((l) => ({ ...l }));
   }
   const storeLinks = (list) => { try { localStorage.setItem(LINKS_KEY, JSON.stringify(list)); } catch {} };
   let linksFolded = (() => { try { return localStorage.getItem(LINKS_FOLD_KEY) === '1'; } catch { return false; } })();
+  const safeColor = (c) => (/^#[0-9a-f]{6}$/i.test(String(c || '')) ? String(c) : '');
   // Only plain web links: refuses javascript:, data: and the like.
   function safeUrl(u) {
     try { const x = new URL(String(u).replace(/\{(lat|lon|id)\}/g, '0')); return x.protocol === 'https:' || x.protocol === 'http:'; } catch { return false; }
@@ -1392,7 +1402,7 @@
     const fold = `<button type="button" class="lk-fold" id="lkFold">${linksFolded ? '▸' : '▾'} Other sites${linksFolded ? ` <span class="count">${list.length}</span>` : ''}</button>`;
     if (linksFolded) { el.innerHTML = fold; }
     else {
-      el.innerHTML = fold + list.map((l) => `<a class="lk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" ${popAttr(l.info || l.url)}>${esc(l.name)}</a>`).join('')
+      el.innerHTML = fold + list.map((l) => `<a class="lk${safeColor(l.color) ? ' branded' : ''}" ${safeColor(l.color) ? `style="--lk:${safeColor(l.color)}"` : ''} href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" ${popAttr(l.info || l.url)}>${esc(l.name)}</a>`).join('')
         + '<button type="button" class="btn sm" id="lkEdit">Edit</button>';
     }
     el.querySelector('#lkFold').onclick = () => { linksFolded = !linksFolded; try { localStorage.setItem(LINKS_FOLD_KEY, linksFolded ? '1' : '0'); } catch {} renderLinks(); };
@@ -1402,7 +1412,7 @@
     let d = document.getElementById('linksDlg');
     if (!d) { d = document.createElement('div'); d.id = 'linksDlg'; document.body.appendChild(d); }
     const list = loadLinks();
-    const rows = list.map((l, i) => `<div class="lk-row"><div><b>${esc(l.name)}</b><div class="u">${esc(l.url)}</div></div>
+    const rows = list.map((l, i) => `<div class="lk-row"><div><span class="lk-sw" ${safeColor(l.color) ? `style="background:${safeColor(l.color)}"` : ''}></span><b>${esc(l.name)}</b><div class="u">${esc(l.url)}</div></div>
       <button class="btn sm" data-lkmove="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
       <button class="btn sm" data-lkmove="${i}" data-dir="1" ${i === list.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
       <button class="btn sm" data-lkdel="${i}">Remove</button></div>`).join('');
@@ -1411,6 +1421,7 @@
       <div class="lbl">Add a link</div>
       <div class="lk-add"><label class="fld"><span>Name</span><input id="lkName" maxlength="40"></label>
         <label class="fld"><span>Address</span><input id="lkUrl" placeholder="https://…" spellcheck="false"></label>
+        <label class="fld"><span>Color</span><input id="lkColor" type="color" value="#2a3a4d"></label>
         <button class="btn primary" id="lkAdd">Add</button></div>
       <div class="lk-err" id="lkErr"></div>
       <p class="muted small">Saved in this browser only. In an address, <code>{lat}</code>, <code>{lon}</code> and <code>{id}</code> are replaced with the first airport of your current brief.</p>
@@ -1430,7 +1441,8 @@
       const err = d.querySelector('#lkErr');
       if (!name) { err.textContent = 'Give the link a name.'; return; }
       if (!safeUrl(url)) { err.textContent = 'That address doesn\'t look like a web address (https://…).'; return; }
-      const l = loadLinks(); l.push({ name, url }); save(l);
+      const color = safeColor(d.querySelector('#lkColor').value);
+      const l = loadLinks(); l.push({ name, url, color: color === '#2a3a4d' ? '' : color }); save(l);
     };
     d.querySelector('#lkReset').onclick = () => { try { localStorage.removeItem(LINKS_KEY); } catch {} renderLinks(); openLinksDialog(); };
     d.querySelector('#lkClose').onclick = () => d.classList.remove('on');

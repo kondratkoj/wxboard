@@ -52,19 +52,25 @@ input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
 .saved { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 16px 0; }
 .saved:empty { display: none; }
-.links { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; padding: 8px 16px 0; font-size: 13px; }
+.links { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; }
 .links .lk-fold { border: 0; background: none; color: var(--muted); cursor: pointer; font: inherit; padding: 2px 4px; }
 .links .lk-fold:hover { color: var(--text); }
 .links a.lk { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; background: var(--panel);
   border: 1px solid var(--line); color: var(--text); text-decoration: none; }
 .links a.lk:hover { border-color: var(--accent); }
+.links a.lk.branded { background: var(--lk); border-color: var(--lk); color: #fff; font-weight: 600; }
+.links a.lk.branded::after { color: #ffffffb0; }
+.links a.lk.branded:hover { filter: brightness(1.18); border-color: #fff8; }
+.lk-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; border: 1px solid var(--line); }
+.lt-right { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .links a.lk::after { content: "\2197"; color: var(--muted); font-size: 11px; }
 #linksDlg { position: fixed; inset: 0; z-index: 3500; display: none; place-items: center; background: #0008; }
 #linksDlg.on { display: grid; }
 .lk-list { display: grid; gap: 4px; }
 .lk-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); }
 .lk-row .u { color: var(--muted); font-size: 11.5px; word-break: break-all; }
-.lk-add { display: grid; grid-template-columns: 1fr 2fr auto; gap: 8px; align-items: end; }
+.lk-add { display: grid; grid-template-columns: 1fr 2fr 64px auto; gap: 8px; align-items: end; }
+.lk-add input[type=color] { height: 34px; padding: 2px; cursor: pointer; }
 .lk-add input { width: 100%; text-transform: none; }
 .lk-err { color: var(--ifr); font-size: 12px; min-height: 1em; }
 .chip {
