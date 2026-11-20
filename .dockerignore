@@ -1,0 +1,9 @@
+.git
+.env
+config.json
+config/
+data/
+node_modules/
+test/
+*.log
+.DS_Store

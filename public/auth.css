@@ -1,0 +1,47 @@
+/* Sign-in, sign-up, account and admin pages (lib/pages.js) and the board's user menu. */
+body.acct { min-height: 100vh; display: flex; flex-direction: column; }
+.acct .top { align-items: center; }
+.acct .brand { text-decoration: none; color: var(--text); }
+.acct-main { flex: 1; padding: 24px 16px; }
+.acct-nav { margin-left: auto; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.acct-nav form { margin: 0; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+
+.card-box { max-width: 420px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px 22px; }
+.card-box.wide { max-width: 900px; }
+.card-box h1 { margin: 0 0 12px; font-size: 22px; }
+.card-box h2 { margin: 22px 0 8px; font-size: 16px; }
+.card-box .banner { margin: 0 0 12px; }
+.banner.ok { background: #0d2a16; border-color: var(--vfr); color: #c9f5d4; }
+
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.stack .fld input, .stack .fld textarea { width: 100%; }
+.acct input[type=password], .acct .stack input:not([type]), .acct textarea {
+  background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+  padding: 8px 10px; font: 15px var(--sans); text-transform: none;
+}
+.acct textarea { resize: vertical; }
+.terms-box { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; color: var(--muted); }
+.btn.danger { border-color: var(--ifr); color: var(--ifr); }
+.btn.danger:hover { background: #3a0d0d; }
+a.btn { display: inline-block; text-decoration: none; }
+
+.utable { width: 100%; border-collapse: collapse; }
+.utable th, .utable td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.utable th { color: var(--muted); font-size: 12px; font-weight: 600; }
+.utable .note { max-width: 320px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.utable .acts { white-space: nowrap; text-align: right; }
+form.inline { display: inline; margin: 0 0 0 4px; }
+
+/* Board header user menu (public/app.js) */
+.usermenu { display: flex; gap: 12px; align-items: center; font-size: 13px; padding-bottom: 6px; }
+.usermenu form { margin: 0; }
+
+@media (max-width: 640px) {
+  .utable, .utable tbody, .utable tr, .utable td { display: block; }
+  .utable tr:first-child { display: none; }
+  .utable tr { border-bottom: 1px solid var(--line); padding: 6px 0; }
+  .utable td { border: 0; padding: 2px 0; }
+  .utable .acts { text-align: left; white-space: normal; }
+  form.inline { margin: 4px 4px 0 0; display: inline-block; }
+}

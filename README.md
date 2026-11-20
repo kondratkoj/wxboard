@@ -35,6 +35,20 @@ Then open **http://localhost:8080**. Example: http://localhost:8080/?ids=KDFW%20
 
 To use it from your phone on the same Wi-Fi, set `"host": "0.0.0.0"` in config.json, then browse to `http://<your-computer's-IP>:8080`. Opening it by IP address, `localhost` or the computer's own name works. To use another name (for example a local DNS name), add it to `"allowedHosts"` in config.json; other names are refused, which blocks DNS-rebinding attacks from web pages. There's no login, so don't expose it to the internet as-is. Each client is limited to 30 briefs a minute.
 
+## Putting it online with sign-ins
+
+wxboard can run as a public site where people sign up and sign in. See **[DEPLOY.md](DEPLOY.md)** for running it on a
+NAS with Docker and Cloudflare Tunnel. The settings, under `"auth"` in config.json:
+
+- `"enabled"`: turns sign-ins on. Off by default, which keeps the original no-login personal setup. The Docker setup turns it on.
+- `"signup"`: `"approval"` (people request an account, an admin approves it), `"open"`, `"invite"` (needs a one-time code from the Admin page) or `"closed"`.
+- `"notams"`: who sees NOTAMs: `"all"` signed-in users, `"admin"` only, or `"none"`.
+
+Also set `"publicUrl"` (e.g. `"https://wx.example.com"`) and, behind a tunnel or proxy, `"trustProxy": true`.
+Manage accounts on the Admin page or with `node tools/admin.js` (run it with no arguments for help).
+
+The FAA's NMS-API terms allow showing NOTAMs to others, as long as they aren't presented as FAA data; the page says it isn't an official FAA product.
+
 ## Data sources
 
 | Data | Source | Key? | Cache |
@@ -95,7 +109,10 @@ Keep `config.json` private (it's in `.gitignore`, along with `data/`).
 ## Files
 
 ```
-server.js              web server + API (/api/brief, /api/status)
+server.js              starts the server
+lib/app.js             request handling: API, static files, sign-in pages
+lib/users.js, auth.js  accounts (data/users.json), sessions, rate limits
+lib/pages.js           sign-in, sign-up, account and admin pages
 lib/brief.js           builds one brief from all sources
 lib/sources/*.js       AWC, NWS, TFR, NMS clients
 lib/flightcat.js       flight category / TAF period logic
@@ -105,5 +122,7 @@ fixtures/              demo data; tools/make-fixtures.js rebuilds it
 lib/notamStore.js      local NOTAM copy + sync scheduler
 tools/nms-test.js      checks your NMS-API credentials (no data pulled)
 tools/winds-test.js    checks the winds aloft feed
+tools/admin.js         manage accounts from the command line
+Dockerfile, docker-compose.yml, DEPLOY.md   public hosting on a NAS
 test/                  unit tests (npm test, no network)
 ```

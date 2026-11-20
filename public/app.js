@@ -127,6 +127,7 @@
     else $('#updated').innerHTML = '<span class="spin"></span> refreshing';
     try {
       const res = await fetch('/api/brief?' + qs, { signal: ctrl.signal });
+      if (res.status === 401) { location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search); return; }
       const body = await res.json();
       if (seq !== runSeq) return; // a newer brief was requested meanwhile
       if (!res.ok) throw new Error(body.error || res.statusText);
@@ -1070,6 +1071,10 @@
   function renderNotams(b) {
     const n = b.notams;
     if (!n.ok) return panel('notams', 'NOTAMs', null, failed(n) + `<div class="none">Check <a href="${b.links.notamSearch}" target="_blank" rel="noopener">FAA NOTAM Search</a> directly.</div>`);
+    if (n.data.restricted) {
+      return panel('notams', 'NOTAMs', null, `<div class="body">
+        <p style="margin-top:0">NOTAMs aren't available on this site. Use <a href="${b.links.notamSearch}" target="_blank" rel="noopener">FAA NOTAM Search</a> for ${esc(b.area.anchors.map((a) => a.id).join(', '))}.</p></div>`);
+    }
     if (!n.data.configured) {
       return panel('notams', 'NOTAMs', null, `<div class="body">
         <p style="margin-top:0">NOTAMs aren't set up yet. Add your NMS-API client ID and secret (the KEY and SECRET from the FAA onboarding spreadsheet) to <code>config.json</code> and restart.</p>
@@ -1339,11 +1344,22 @@
     mapBounds = newBounds;
   }
 
+  // Signed-in user's name, account links and sign-out (only when the server has sign-ins turned on).
+  function renderUserMenu() {
+    const el = $('#usermenu');
+    const u = status.user;
+    if (!el || !u) return;
+    el.innerHTML = `<span class="muted">${esc(u.username)}</span><a href="/account">Account</a>`
+      + (u.role === 'admin' ? `<a href="/admin">Admin${u.pending ? ` <span class="tag warn">${Number(u.pending)}</span>` : ''}</a>` : '')
+      + `<form method="post" action="/logout"><input type="hidden" name="csrf" value="${esc(u.csrf)}"><button class="linkbtn">Sign out</button></form>`;
+  }
+
   // ---------- start ----------
   async function init() {
     renderSaved();
     try { status = await (await fetch('/api/status')).json(); } catch {}
     baseBanner();
+    renderUserMenu();
     if (status.defaultRadiusNm) $('#radius').value = status.defaultRadiusNm;
     const p = new URLSearchParams(location.search);
     if (p.get('ids')) {

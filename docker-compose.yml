@@ -1,0 +1,32 @@
+# wxboard + Cloudflare Tunnel. See DEPLOY.md for the step-by-step setup.
+#
+#   docker compose up -d --build        start (or update after changing the code)
+#   docker compose logs -f wxboard      watch the log
+#   docker compose exec wxboard node tools/admin.js create-admin <username>
+services:
+  wxboard:
+    build: .
+    image: wxboard:local
+    restart: unless-stopped
+    # Runs as this user/group so it can write ./data. Set PUID/PGID in .env to match the NAS folder's owner.
+    user: "${PUID:-1000}:${PGID:-1000}"
+    environment:
+      WX_AUTH: "1"            # sign-ins always on for the public site
+      WX_TRUST_PROXY: "1"     # visitors arrive through the tunnel; read their address from Cloudflare's header
+      WX_ALLOWED_HOSTS: "wxboard"
+    volumes:
+      - ./config:/config:ro   # config.json (settings, NMS keys)
+      - ./data:/data          # accounts, NOTAM copy, session key. Back this folder up.
+    # Not published to your network on purpose: the only way in is the tunnel. To also open it on your home
+    # network, uncomment the next two lines (anyone on your Wi-Fi could then fake their address to the rate limits).
+    # ports:
+    #   - "8080:8080"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: "${TUNNEL_TOKEN:?Set TUNNEL_TOKEN in .env (see DEPLOY.md)}"
+    depends_on:
+      - wxboard
