@@ -15,6 +15,7 @@ Personal preflight weather board. Enter one or more airports and get, for that a
 - **Shift outlook:** hour-by-hour timeline for your shift (start time, 6–24 h): TAF and LAMP conditions colored by your minimums, winds at a chosen altitude, precip chance, day/night, and bars for SIGMETs, CWAs, G-AIRMETs, TFRs and red/amber NOTAMs, with a one-line summary on top
 - **NWS area forecast** in plain English
 - **Map** with stations colored by flight category, plus hazard and TFR outlines
+- **Other sites:** a row of links under the header (AWC GFA, ForeFlight Web, Windy, College of DuPage satellite/radar, 1800wxbrief). Each pilot can add, remove and reorder their own under **Edit** (saved per browser); `{lat}`, `{lon}` and `{id}` in an address are filled in from the first airport of the current brief. The row folds like everything else.
 
 Areas: a single airport gives a circle around it. Several airports give a circle around each one. Tick **Route** to get a corridor along the airports in order. Save areas as quick-pick chips. The URL updates as you go, so bookmarks work too. The page refreshes every 5 minutes.
 

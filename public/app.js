@@ -306,6 +306,7 @@
   document.addEventListener('focusout', (e) => { if (e.target.closest(POP_SEL)) hideInfo(); });
   document.addEventListener('click', (e) => {
     const i = e.target.closest(POP_SEL);
+    if (i && i.matches('a[href]')) { infoPinned = null; infoPop.classList.remove('on'); return; } // a link: just follow it
     if (i) { infoPinned = infoPinned === i ? null : i; if (infoPinned) showInfo(i); else infoPop.classList.remove('on'); e.stopPropagation(); return; }
     if (!e.target.closest('#infoPop')) { infoPinned = null; infoPop.classList.remove('on'); }
   });
@@ -680,6 +681,7 @@
     bindOutlookTools();
     bindLayoutTools();
     drawMap(b);
+    renderLinks();
   }
 
   function refreshMap() {
@@ -1354,9 +1356,91 @@
       + `<form method="post" action="/logout"><input type="hidden" name="csrf" value="${esc(u.csrf)}"><button class="linkbtn">Sign out</button></form>`;
   }
 
+  // ---------- other weather sites (link row under the header) ----------
+  // Each browser keeps its own list. {lat} {lon} {id} in a URL are filled in from the first airport of the
+  // current brief (no brief yet: the link opens the site's home page instead).
+  const LINKS_KEY = 'wxboard.links.v1';
+  const LINKS_FOLD_KEY = 'wxboard.linksFolded';
+  const DEFAULT_LINKS = [
+    { name: 'AWC GFA', url: 'https://aviationweather.gov/gfa/',
+      info: 'Aviation Weather Center Graphical Forecasts for Aviation. Click the helicopter button for Low Altitude mode (the former HEMS Tool).' },
+    { name: 'ForeFlight Web', url: 'https://plan.foreflight.com/', info: 'ForeFlight on the web. Needs a ForeFlight subscription.' },
+    { name: 'Windy', url: 'https://www.windy.com/?{lat},{lon},8', info: 'Windy model forecasts, centered on your first airport.' },
+    { name: 'COD Sat/Radar', url: 'https://weather.cod.edu/satrad/', info: 'College of DuPage NEXLAB satellite and radar.' },
+    { name: '1800wxbrief', url: 'https://www.1800wxbrief.com/', info: 'Leidos Flight Service: standard briefings and flight plans.' },
+  ];
+  function loadLinks() {
+    try { const v = JSON.parse(localStorage.getItem(LINKS_KEY)); if (Array.isArray(v)) return v.filter((l) => l && l.name && safeUrl(l.url)); } catch {}
+    return DEFAULT_LINKS.map((l) => ({ ...l }));
+  }
+  const storeLinks = (list) => { try { localStorage.setItem(LINKS_KEY, JSON.stringify(list)); } catch {} };
+  let linksFolded = (() => { try { return localStorage.getItem(LINKS_FOLD_KEY) === '1'; } catch { return false; } })();
+  // Only plain web links: refuses javascript:, data: and the like.
+  function safeUrl(u) {
+    try { const x = new URL(String(u).replace(/\{(lat|lon|id)\}/g, '0')); return x.protocol === 'https:' || x.protocol === 'http:'; } catch { return false; }
+  }
+  function linkHref(url) {
+    const a = lastBrief && lastBrief.area && lastBrief.area.anchors && lastBrief.area.anchors[0];
+    if (!/\{(lat|lon|id)\}/.test(url)) return url;
+    if (!a || a.lat == null) { try { return new URL(url.replace(/\{(lat|lon|id)\}/g, '0')).origin + '/'; } catch { return url; } }
+    return url.replace(/\{lat\}/g, Number(a.lat).toFixed(3)).replace(/\{lon\}/g, Number(a.lon).toFixed(3)).replace(/\{id\}/g, encodeURIComponent(a.id || ''));
+  }
+  function renderLinks() {
+    const el = document.getElementById('links');
+    if (!el) return;
+    const list = loadLinks();
+    const fold = `<button type="button" class="lk-fold" id="lkFold">${linksFolded ? '▸' : '▾'} Other sites${linksFolded ? ` <span class="count">${list.length}</span>` : ''}</button>`;
+    if (linksFolded) { el.innerHTML = fold; }
+    else {
+      el.innerHTML = fold + list.map((l) => `<a class="lk" href="${esc(linkHref(l.url))}" target="_blank" rel="noopener noreferrer" ${popAttr(l.info || l.url)}>${esc(l.name)}</a>`).join('')
+        + '<button type="button" class="btn sm" id="lkEdit">Edit</button>';
+    }
+    el.querySelector('#lkFold').onclick = () => { linksFolded = !linksFolded; try { localStorage.setItem(LINKS_FOLD_KEY, linksFolded ? '1' : '0'); } catch {} renderLinks(); };
+    const ed = el.querySelector('#lkEdit'); if (ed) ed.onclick = openLinksDialog;
+  }
+  function openLinksDialog() {
+    let d = document.getElementById('linksDlg');
+    if (!d) { d = document.createElement('div'); d.id = 'linksDlg'; document.body.appendChild(d); }
+    const list = loadLinks();
+    const rows = list.map((l, i) => `<div class="lk-row"><div><b>${esc(l.name)}</b><div class="u">${esc(l.url)}</div></div>
+      <button class="btn sm" data-lkmove="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
+      <button class="btn sm" data-lkmove="${i}" data-dir="1" ${i === list.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
+      <button class="btn sm" data-lkdel="${i}">Remove</button></div>`).join('');
+    d.innerHTML = `<div class="dlg"><h3>Other weather sites</h3>
+      <div class="lk-list">${rows || '<div class="muted small">No links. Add one below, or reset to the defaults.</div>'}</div>
+      <div class="lbl">Add a link</div>
+      <div class="lk-add"><label class="fld"><span>Name</span><input id="lkName" maxlength="40"></label>
+        <label class="fld"><span>Address</span><input id="lkUrl" placeholder="https://…" spellcheck="false"></label>
+        <button class="btn primary" id="lkAdd">Add</button></div>
+      <div class="lk-err" id="lkErr"></div>
+      <p class="muted small">Saved in this browser only. In an address, <code>{lat}</code>, <code>{lon}</code> and <code>{id}</code> are replaced with the first airport of your current brief.</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="lkReset">Reset to defaults</button><button class="btn primary" id="lkClose">Done</button></div></div>`;
+    d.classList.add('on');
+    const save = (l) => { storeLinks(l); renderLinks(); openLinksDialog(); };
+    d.querySelectorAll('[data-lkdel]').forEach((b) => (b.onclick = () => { const l = loadLinks(); l.splice(Number(b.dataset.lkdel), 1); save(l); }));
+    d.querySelectorAll('[data-lkmove]').forEach((b) => (b.onclick = () => {
+      const l = loadLinks(), i = Number(b.dataset.lkmove), j = i + Number(b.dataset.dir);
+      if (j < 0 || j >= l.length) return;
+      [l[i], l[j]] = [l[j], l[i]]; save(l);
+    }));
+    d.querySelector('#lkAdd').onclick = () => {
+      const name = d.querySelector('#lkName').value.trim();
+      let url = d.querySelector('#lkUrl').value.trim();
+      if (url && !/^[a-z]+:/i.test(url)) url = 'https://' + url;
+      const err = d.querySelector('#lkErr');
+      if (!name) { err.textContent = 'Give the link a name.'; return; }
+      if (!safeUrl(url)) { err.textContent = 'That address doesn\'t look like a web address (https://…).'; return; }
+      const l = loadLinks(); l.push({ name, url }); save(l);
+    };
+    d.querySelector('#lkReset').onclick = () => { try { localStorage.removeItem(LINKS_KEY); } catch {} renderLinks(); openLinksDialog(); };
+    d.querySelector('#lkClose').onclick = () => d.classList.remove('on');
+    d.onclick = (e) => { if (e.target === d) d.classList.remove('on'); };
+  }
+
   // ---------- start ----------
   async function init() {
     renderSaved();
+    renderLinks();
     try { status = await (await fetch('/api/status')).json(); } catch {}
     baseBanner();
     renderUserMenu();
