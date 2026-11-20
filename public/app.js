@@ -325,7 +325,10 @@
 
   // ---------- Shift outlook: hour-by-hour timeline ----------
   const OUT_KEY = 'wxboard.outlook.v1';
-  let outlook = (() => { try { return { start: 'now', hours: 12, alt: 3000, ...(JSON.parse(localStorage.getItem(OUT_KEY)) || {}) }; } catch { return { start: 'now', hours: 12, alt: 3000 }; } })();
+  let outlook = (() => { try { return { start: 'now', hours: 12, alt: 3000, shiftSrc: 'all', ...(JSON.parse(localStorage.getItem(OUT_KEY)) || {}) }; } catch { return { start: 'now', hours: 12, alt: 3000, shiftSrc: 'all' }; } })();
+  // 'all' = worst case from TAF + LAMP (+ current METAR); 'taf' = TAF (+ current METAR) only. LAMP rows still show either way.
+  const lampCounts = () => outlook.shiftSrc !== 'taf';
+  const SRC_SHORT = { TAF: 'TAF', LAMP: 'LAMP', 'current METAR': 'METAR' };
   const saveOutlook = () => { try { localStorage.setItem(OUT_KEY, JSON.stringify(outlook)); } catch {} };
   const HR = 3600e3;
   const LAMP_CIG = { 1: '<2', 2: '2-4', 3: '5-9', 4: '10-19', 5: '20-30', 6: '31-65', 7: '66+', 8: 'unl' };
@@ -391,24 +394,13 @@
       const folded = aptFolded(a.id);
       const aptHead = (extra) => `<span class="ofold-btn">${folded ? '▸' : '▾'}</span> <span class="ogrp-id">${esc(a.id)}</span> ${mNow ? cat(mNow.fltCat) : ''} ${riskBadge(rNowA)} <span class="muted small">${esc(a.name || '')}${mNow ? ` · now: ${ceil(mNow.ceilingFt)}, ${vis(mNow.visib)}` : ''}</span>${extra}`;
       const aptBody = group(aptHead(''), `obody-apt${folded ? ' ofolded' : ''}`, a.id);
-      let worst = null; // {level, from, to, src}
-      const note = (level, c, src) => {
-        if (!level) return;
-        if (!worst || LVL(level) > LVL(worst.level)) worst = { level, from: c, to: c + HR, src };
-        else if (level === worst.level && worst.to === c) worst.to = c + HR;
-      };
-      // The hour containing "now" is also judged against the latest METAR, so a busted forecast can't show green.
-      if (mNow) {
-        const cNow = cols.find((c) => c <= now && now < c + HR);
-        if (cNow != null) { const r = riskAt(mNow.ceilingFt, mNow.visSM, now, a.lat, a.lon); note(r && r.level, cNow, 'current METAR'); }
-      }
+      let worst = null; // {level, from, to, src}, set below from shiftWorst()
       const t = tafBy.get(a.id);
       if (t) {
         row('TAF', cols.map((c) => {
           const { prevailing: p, cond } = tafAt(t, c + HR / 2);
           if (!p) return `<td class="ocell${past(c)}"></td>`;
           const r = riskAt(p.ceilingFt, p.visSM, c + HR / 2, a.lat, a.lon);
-          note(r && r.level, c, 'TAF');
           const worstCond = cond.map((q) => riskAt(q.ceilingFt, q.visSM, c + HR / 2, a.lat, a.lon)).filter(Boolean)
             .reduce((w, q) => (!w || LVL(q.level) > LVL(w.level) ? q : w), null);
           const cls = r ? `risk-bg-${r.level}` : `cat-bg-${p.fltCat || 'NA'}`;
@@ -418,13 +410,12 @@
       }
       const L = lampBy[a.id];
       if (L && L.rows.length) {
-        row(`LAMP ${infoTip(LAMP_INFO)}`, cols.map((c) => {
+        row(`LAMP ${infoTip(LAMP_INFO)}${lampCounts() ? '' : ` <span class="muted small" ${popAttr('LAMP is not counted in the worst case (Worst case from: TAF only).')}>not counted</span>`}`, cols.map((c) => {
           const r0 = L.rows.find((x) => Math.abs(x.t - (c + HR)) < 31 * 60e3) || L.rows.find((x) => Math.abs(x.t - c) < 31 * 60e3);
           if (!r0) return `<td class="ocell${past(c)}"></td>`;
           const ms = c + HR / 2;
           const lo = riskAt(r0.ceilLow, r0.visLow, ms, a.lat, a.lon);           // worst end of the ranges
           const hi = riskAt(r0.ceilHigh, r0.visHigh ?? 10, ms, a.lat, a.lon);  // best end
-          note(lo && lo.level, c, 'LAMP');
           const split = lo && hi && lo.level !== hi.level;
           const cls = lo ? `risk-bg-${lo.level}` : '';
           const tip = `Ceiling ${r0.ceilText} ft · Vis ${r0.visText} SM${r0.obv && r0.obv !== 'N' ? ' ' + r0.obv : ''}${r0.p01 != null ? ` · precip ${Math.round(r0.p01)}%` : r0.pop != null ? ` · precip ${r0.pop}%` : ''}${r0.ltg ? ` · lightning ${Math.round(r0.ltg)}%` : ''}${r0.conv ? ` · convection ${Math.round(r0.conv)}%` : ''}${lo ? ` · ${split ? `between ${hi.label} and ${lo.label}` : lo.label} (${lo.lim.label})` : ''}`;
@@ -463,14 +454,20 @@
         row(`Precip % <span class="muted small">n/a</span>`, cols.map((c, i) => `<td class="ocell muted${past(c)}" title="${esc(why)}">${i === 0 ? '—' : ''}</td>`));
       }
       if (!t && !(L && L.rows.length)) row('<span class="muted">No TAF or LAMP</span>', cols.map((c) => `<td class="ocell${past(c)}"></td>`));
+      // Folded header and summary use the same worst-case calculation as the airport card's Shift badge.
+      const sw = shiftWorst(b, a);
+      const noTafOnly = Boolean(sw && sw.noTaf);
+      worst = sw && !sw.noTaf && mins.enabled ? { level: sw.key, from: sw.from, to: sw.to, src: sw.src } : null;
       // A minimized airport still shows its worst conditions for the shift in its header.
       if (folded) {
-        const w = worst && worst.level !== 'green'
+        const w = noTafOnly ? ' <span class="muted small">No TAF (LAMP not counted)</span>'
+          : worst && worst.level !== 'green'
           ? ` <span class="risk risk-${worst.level}">${MN.LABEL[worst.level]} ${hhL(worst.from)}–${hhL(worst.to)}L</span>`
           : worst ? ' <span class="risk risk-green">Green all shift</span>' : '';
         aptBody.rows[0] = `<tr class="ogrp" data-ofold="${esc(a.id)}"><th colspan="${N + 1}">${aptHead(`${w} <span class="muted small">(minimized)</span>`)}</th></tr>`;
       }
-      if (worst && worst.level !== 'green') summary.push(`<span class="alert ${worst.level === 'red' || worst.level === 'critical' ? 'red' : 'hot'}"><b>${esc(a.id)}</b> ${MN.LABEL[worst.level]} ${hhL(worst.from)}–${hhL(worst.to)}L <span class="muted">(${worst.src})</span></span>`);
+      if (noTafOnly) summary.push(`<span class="alert"><b>${esc(a.id)}</b> No TAF <span class="muted">(LAMP not counted)</span></span>`);
+      else if (worst && worst.level !== 'green') summary.push(`<span class="alert ${worst.level === 'red' || worst.level === 'critical' ? 'red' : 'hot'}"><b>${esc(a.id)}</b> ${MN.LABEL[worst.level]} ${hhL(worst.from)}–${hhL(worst.to)}L <span class="muted">(${SRC_SHORT[worst.src] || worst.src})</span></span>`);
       else if (worst) summary.push(`<span class="alert"><b>${esc(a.id)}</b> Green all ${N} hr</span>`);
     }
 
@@ -527,6 +524,7 @@
       <label class="chk small">Shift starts <select id="oStart" class="sel">${startOpts}</select></label>
       <label class="chk small">Length <select id="oHours" class="sel">${[6, 12, 18, 24].map((h) => `<option value="${h}" ${outlook.hours === h ? 'selected' : ''}>${h} hr</option>`).join('')}</select></label>
       <label class="chk small">Winds at <select id="oAlt" class="sel">${altOpts}</select></label>
+      <label class="chk small" ${popAttr('What the Shift badge on each airport card and the worst-case summary here are worked out from. LAMP is NOAA automated guidance (supplementary, not a TAF). The current METAR always counts for the hour you are in.')}>Worst case from <select id="oSrc" class="sel"><option value="all" ${lampCounts() ? 'selected' : ''}>TAF + LAMP</option><option value="taf" ${lampCounts() ? '' : 'selected'}>TAF only</option></select></label>
       <span class="muted small">${hhL(cols[0])}–${hhL(cols[0] + N * HR)} local</span>
       <button class="btn sm" id="oFoldAll">Minimize all</button><button class="btn sm" id="oOpenAll">Expand all</button></div>`;
     const sum = `<details class="osum" ${outlook.foldSummary ? '' : 'open'}><summary><span class="lbl">Summary</span> <span class="muted small">${summary.length} item${summary.length === 1 ? '' : 's'}</span></summary>
@@ -540,6 +538,7 @@
     on('#oStart', (v) => (outlook.start = v === 'now' ? 'now' : Number(v)));
     on('#oHours', (v) => (outlook.hours = Number(v)));
     on('#oAlt', (v) => (outlook.alt = Number(v)));
+    on('#oSrc', (v) => (outlook.shiftSrc = v === 'taf' ? 'taf' : 'all'));
     const sumEl = document.querySelector('.panel[data-id=outlook] details.osum');
     if (sumEl) sumEl.addEventListener('toggle', () => { outlook.foldSummary = !sumEl.open; saveOutlook(); });
     document.querySelectorAll('.panel[data-id=outlook] tr.ogrp[data-ofold]').forEach((tr) => tr.addEventListener('click', () => {
@@ -586,15 +585,16 @@
   function shiftWorst(b, a) {
     const start = outlookStart(), N = outlook.hours, H = 3600e3;
     const t = b.tafs.ok ? b.tafs.data.find((x) => x.id === a.id) : null;
-    const L = b.lamp && b.lamp.ok ? b.lamp.data[a.id] : null;
-    let worst = null; // { key, rank, label, cls, from, to, src }
-    const consider = (rank, key, label, cls, c, src) => {
-      if (!worst || rank > worst.rank) worst = { rank, key, label, cls, from: c, to: c + H, src };
-      else if (rank === worst.rank && worst.to === c) worst.to = c + H;
-    };
+    const L = lampCounts() && b.lamp && b.lamp.ok ? b.lamp.data[a.id] : null;
+    if (!lampCounts() && !t) return { noTaf: true };
+    const entries = []; // in time order; within an hour the current METAR, then the TAF, then LAMP, so a tie is credited in that order
     for (let i = 0; i < N; i++) {
       const c = start + i * H, mid = c + H / 2;
       const levels = [];
+      if (c <= Date.now() && Date.now() < c + H && b.metars.ok) {
+        const m = b.metars.data.find((x) => x.id === a.id);
+        if (m) levels.push({ ceil: m.ceilingFt, vis: m.visSM, src: 'current METAR' });
+      }
       if (t) {
         const p = t.periods.find((q) => !q.conditional && q.from <= mid && q.to > mid);
         if (p) levels.push({ ceil: p.ceilingFt, vis: p.visSM, src: 'TAF' });
@@ -603,28 +603,38 @@
         const r0 = L.rows.find((x) => Math.abs(x.t - (c + H)) < 31 * 60e3);
         if (r0) levels.push({ ceil: r0.ceilLow, vis: r0.visLow, src: 'LAMP' });
       }
-      if (c <= Date.now() && Date.now() < c + H && b.metars.ok) {
-        const m = b.metars.data.find((x) => x.id === a.id);
-        if (m) levels.push({ ceil: m.ceilingFt, vis: m.visSM, src: 'current METAR' });
-      }
       for (const lv of levels) {
         if (mins.enabled) {
           const r = riskAt(lv.ceil, lv.vis, mid, a.lat, a.lon);
-          if (r) consider(MN.LEVELS.indexOf(r.level), r.level, MN.LABEL[r.level], `risk risk-${r.level}`, c, lv.src);
+          if (r) entries.push({ rank: MN.LEVELS.indexOf(r.level), key: r.level, label: MN.LABEL[r.level], cls: `risk risk-${r.level}`, c, src: lv.src });
         } else {
           const k = catOf(lv.ceil, lv.vis);
-          consider(CAT_RANK[k], k, k, `cat ${k}`, c, lv.src);
+          entries.push({ rank: CAT_RANK[k], key: k, label: k, cls: `cat ${k}`, c, src: lv.src });
         }
       }
     }
-    return worst;
+    if (!entries.length) return null;
+    const top = Math.max(...entries.map((e) => e.rank));
+    const first = entries.find((e) => e.rank === top);
+    let to = first.c + H; // extend while the following hours stay at the worst level
+    while (entries.some((e) => e.c === to && e.rank === top)) to += H;
+    const firstBySrc = {};
+    for (const e of entries) if (e.rank === top && !(e.src in firstBySrc)) firstBySrc[e.src] = e.c;
+    return { rank: top, key: first.key, label: first.label, cls: first.cls, from: first.c, to, src: first.src, firstBySrc, hasTaf: Boolean(t) };
   }
   function shiftBadge(b, a) {
     const w = shiftWorst(b, a);
+    if (w && w.noTaf) return `<span class="muted small" ${popAttr('Worst case is set to TAF only (in the Shift outlook) and this airport has no TAF.')}>No TAF (LAMP not counted)</span>`;
     if (!w) return '<span class="muted small">No TAF or LAMP</span>';
-    const best = w.rank === 0;
-    const txt = best ? `${w.label} all shift` : `${w.label} ${hhL(w.from)}–${hhL(w.to)}L`;
-    return `<span class="${w.cls}" ${popAttr(`Worst forecast for the shift window, from ${w.src}. See the Shift outlook for hour-by-hour detail.`)}>${esc(txt)}</span>`;
+    const src = SRC_SHORT[w.src] || w.src;
+    if (w.rank === 0) {
+      return `<span class="${w.cls}" ${popAttr(`No worse than ${w.label} all shift, from ${lampCounts() ? 'the TAF and LAMP' : 'the TAF (LAMP not counted)'}${'current METAR' in w.firstBySrc ? ' and the current METAR' : ''}.`)}>${esc(`${w.label} all shift`)}</span>`;
+    }
+    let tip = `Worst forecast for the shift: ${w.label} from ${hhL(w.from)}L, first shown by ${w.src === 'LAMP' ? 'LAMP (NOAA automated guidance, supplementary)' : w.src === 'TAF' ? 'the TAF' : 'the current METAR'}.`;
+    if (w.src !== 'TAF' && w.hasTaf) tip += 'TAF' in w.firstBySrc ? ` The TAF reaches ${w.label} at ${hhL(w.firstBySrc.TAF)}L.` : ` The TAF does not reach ${w.label} this shift.`;
+    if (!lampCounts()) tip += ' LAMP is not counted (Worst case from: TAF only).';
+    tip += ' See the Shift outlook for hour-by-hour detail.';
+    return `<span class="${w.cls}" ${popAttr(tip)}>${esc(`${w.label} ${hhL(w.from)}–${hhL(w.to)}L · ${src}`)}</span>`;
   }
 
   // ---------- render ----------
