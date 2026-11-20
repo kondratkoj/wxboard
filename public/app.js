@@ -10,7 +10,6 @@
   let current = null;     // { ids, radius, route }
   let lastBrief = null;
   let refreshTimer = null;
-  let map = null, mapLayers = null, mapBounds = null;
   let windsHr = 0;
   let windsMax = (() => { try { return Number(localStorage.getItem('wxboard.windsMax')) || 12000; } catch { return 12000; } })();
   let notamScope = 'airport', notamFilter = '';
@@ -766,7 +765,8 @@
     if (b.area.unknown.length) notice = `<div class="banner err">Not found: ${esc(b.area.unknown.join(', '))}</div>`;
 
     const panels = {
-      map: panel('map', 'Map', null, '<div id="map"></div>', `<span class="muted small">${b.area.route ? 'Route corridor' : 'Radius'} ${b.area.radiusNm} nm</span>`),
+      map: panel('map', 'AWC GFA', null, '<div id="gfaSlot" class="gfa-slot"></div>',
+        `<a class="small" href="${esc(gfaUrl(b))}" target="_blank" rel="noopener noreferrer" ${popAttr('Open the Aviation Weather Center GFA in a new tab, centered on this area.')}>Open in new tab ↗</a>`),
       airports: renderAirports(b, anchorIds, metarById, tafById),
       stations: renderStations(b, anchorIds),
       notams: renderNotams(b),
@@ -804,13 +804,8 @@
     bindAirportFolds();
     bindOutlookTools();
     bindLayoutTools();
-    drawMap(b);
+    placeGfa(b);
     renderLinks();
-  }
-
-  function refreshMap() {
-    if (!map) return;
-    setTimeout(() => { map.invalidateSize(); if (mapBounds) map.fitBounds(mapBounds, { padding: [10, 10] }); }, 60);
   }
 
   function setCollapsed(sec, on) {
@@ -819,7 +814,6 @@
     sec.querySelector('.fold').textContent = on ? '▸' : '▾';
     layout.collapsed = layout.collapsed.filter((x) => x !== id);
     if (on) layout.collapsed.push(id);
-    if (id === 'map' && !on) refreshMap();
   }
 
   function bindLayoutTools() {
@@ -879,7 +873,6 @@
       document.body.classList.remove('is-dragging');
       layout.cols = [...document.querySelectorAll('#app .col')].map((c) => [...c.querySelectorAll(':scope > .panel')].map((p) => p.dataset.id));
       saveLayout();
-      if (sec.dataset.id === 'map') refreshMap();
     };
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
@@ -998,7 +991,6 @@
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
-    if (kind === 'panel' && arg === 'map') refreshMap();
   }
   document.addEventListener('click', (e) => {
     const j = e.target.closest('a.jump[data-jump]');
@@ -1314,7 +1306,7 @@
     });
   }
 
-  // ----- Hazards (with hazard-type filter that also applies to the map) -----
+  // ----- Hazards (with hazard-type filter) -----
   const HAZ_GROUPS = [
     ['conv', 'Convective'], ['turb', 'Turbulence'], ['ice', 'Icing'], ['fzlvl', 'Freezing level'], ['ifr', 'IFR'],
     ['mtn', 'Mountain obscuration'], ['llws', 'Low-level wind shear'], ['wind', 'Surface wind'], ['ash', 'Volcanic ash'], ['other', 'Other'],
@@ -1362,7 +1354,7 @@
         ${x.dueTo ? `<div class="small">${esc(x.dueTo)}</div>` : ''}</div>`;
     });
     const errs = ['sigmets', 'cwas', 'gairmets'].filter((k) => !b[k].ok).map((k) => `<div class="err">${k}: ${esc(b[k].error)}</div>`).join('');
-    const tools = chips ? `<div class="tools"><span class="muted small">Show:</span>${chips}${nHidden ? `<span class="muted small">${nHidden} hidden from list and map</span>` : ''}</div>` : '';
+    const tools = chips ? `<div class="tools"><span class="muted small">Show:</span>${chips}${nHidden ? `<span class="muted small">${nHidden} hidden from the list and outlook</span>` : ''}</div>` : '';
     const body = parts.join('') || (all.length ? '<div class="none">All advisories here are hidden by your filter.</div>' : '<div class="none">None affecting this area</div>');
     return panel('advisories', 'Advisories (SIGMET · CWA · G-AIRMET)', all.length === shown.length ? all.length : `${shown.length}/${all.length}`, errs + tools + body);
   }
@@ -1409,65 +1401,63 @@
     return panel('forecast', 'Area forecast (NWS)', null, blocks);
   }
 
-  // ----- Map -----
-  const CAT_COLORS = { VFR: '#3fbf5f', MVFR: '#4f8dff', IFR: '#ff4d4d', LIFR: '#e05cff' };
-  function drawMap(b) {
-    const el = document.getElementById('map');
-    if (!el || typeof L === 'undefined') { if (el) el.innerHTML = '<div class="none">Map library unavailable </div>'; return; }
-    // Keep one Leaflet map for the page's life: re-rendering replaces #map, so move the existing map's
-    // container into its place instead of rebuilding the map (and losing tiles, zoom and pan).
-    let reused = false;
-    if (map) {
-      const box = map.getContainer();
-      if (box !== el) { el.replaceWith(box); }
-      mapLayers.clearLayers();
-      map.invalidateSize();
-      reused = true;
-    } else {
-      map = L.map(el, { zoomControl: true, attributionControl: true });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 12, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
-      mapLayers = L.layerGroup().addTo(map);
-    }
-
-    const pts = b.area.anchors.map((a) => [a.lat, a.lon]);
-    const nm2m = 1852;
-    if (b.area.route && pts.length > 1) {
-      L.polyline(pts, { color: '#5fb3ff', weight: 2, dashArray: '6 6' }).addTo(mapLayers);
-      // corridor approximation: circles at each point + the line
-      pts.forEach((p) => L.circle(p, { radius: b.area.radiusNm * nm2m, color: '#5fb3ff', weight: 1, fill: false, dashArray: '2 6' }).addTo(mapLayers));
-    } else {
-      pts.forEach((p) => L.circle(p, { radius: b.area.radiusNm * nm2m, color: '#5fb3ff', weight: 1, fillOpacity: 0.04 }).addTo(mapLayers));
-    }
-
-    const hz = (geom, color, label) => {
-      if (!geom) return;
-      try {
-        L.geoJSON(geom, { style: { color, weight: 1.5, fillOpacity: 0.12 } }).bindTooltip(esc(label)).addTo(mapLayers);
-      } catch {}
-    };
-    if (b.sigmets.ok) b.sigmets.data.filter((s) => hazShown(s.hazard)).forEach((s) => hz(s.geometry, /CONV/.test(s.hazard) ? '#ff4d4d' : '#ffb547', `${s.kind} ${s.hazard}`));
-    if (b.cwas.ok) b.cwas.data.filter((c) => hazShown(c.hazard || c.raw)).forEach((c) => hz(c.geometry, '#ffb547', `CWA ${c.hazard || ''}`));
-    if (b.gairmets.ok) b.gairmets.data.filter((g) => hazShown(g.hazard)).forEach((g) => hz(g.geometry, '#c9a227', `G-AIRMET ${g.hazard}`));
-    if (b.tfrs.ok) b.tfrs.data.forEach((t) => hz(t.geometry, '#ff3b8b', `TFR ${t.number} ${t.type || ''}`));
-
-    if (b.metars.ok) b.metars.data.forEach((m) => {
-      if (m.lat == null) return;
-      L.circleMarker([m.lat, m.lon], { radius: 6, color: '#000', weight: 1, fillColor: CAT_COLORS[m.fltCat] || '#888', fillOpacity: 1 })
-        .bindTooltip(esc(m.id), { permanent: true, direction: 'right', className: 'map-label', offset: [6, 0] })
-        .bindPopup(`<b>${esc(m.id)}</b> ${esc(m.fltCat || '')}<br><span style="font-family:monospace">${esc(m.raw)}</span>`)
-        .addTo(mapLayers);
-    });
-    if (b.pireps.ok) b.pireps.data.forEach((p) => {
-      if (p.lat == null) return;
-      L.circleMarker([p.lat, p.lon], { radius: 4, color: p.urgent ? '#ff4d4d' : '#ffffff', weight: 2, fill: false })
-        .bindPopup(`<span style="font-family:monospace">${esc(p.raw)}</span>`).addTo(mapLayers);
-    });
-
+  // ----- Map: the Aviation Weather Center GFA, embedded -----
+  // An embedded page reloads whenever it is moved in the page, and the board re-renders often (every refresh,
+  // most settings). So one GFA frame lives for the whole visit, outside the board, and is laid over the Map
+  // panel's slot. It only loads a new address when the briefed area changes, so your own pan, zoom, layers and
+  // time in the GFA survive refreshes. Settings you change inside the GFA are kept by the GFA itself.
+  const GFA_BASE = 'https://aviationweather.gov/gfa/';
+  const GFA_HEIGHT = 600;
+  let gfaFrame = null, gfaWrap = null, gfaKey = '';
+  function gfaView(b, widthPx) {
     const bb = b.area.bbox;
-    const newBounds = [[bb.minLat, bb.minLon], [bb.maxLat, bb.maxLon]];
-    // Re-fit only when the area changed, so a background refresh keeps your zoom and pan.
-    if (!reused || JSON.stringify(newBounds) !== JSON.stringify(mapBounds)) map.fitBounds(newBounds, { padding: [10, 10] });
-    mapBounds = newBounds;
+    const lat = (bb.minLat + bb.maxLat) / 2, lon = (bb.minLon + bb.maxLon) / 2;
+    // Web-map zoom that fits the area's box (plus a margin) in the frame.
+    const lonSpan = Math.max(0.2, (bb.maxLon - bb.minLon) * 1.3);
+    const latSpan = Math.max(0.2, (bb.maxLat - bb.minLat) * 1.3);
+    const zLon = Math.log2((widthPx * 360) / (256 * lonSpan));
+    const zLat = Math.log2((GFA_HEIGHT * 360 * Math.cos((lat * Math.PI) / 180)) / (256 * latSpan));
+    const zoom = Math.max(3, Math.min(11, Math.floor(Math.min(zLon, zLat))));
+    return { lat: lat.toFixed(3), lon: lon.toFixed(3), zoom };
+  }
+  function gfaUrl(b, widthPx = 900) {
+    const v = gfaView(b, widthPx);
+    return `${GFA_BASE}?tab=obs&center=${v.lat},${v.lon}&zoom=${v.zoom}`;
+  }
+  function placeGfa(b) {
+    const slot = document.getElementById('gfaSlot');
+    if (!slot) return;
+    slot.style.height = GFA_HEIGHT + 'px';
+    if (!gfaWrap) {
+      gfaWrap = document.createElement('div');
+      gfaWrap.id = 'gfaOverlay';
+      gfaFrame = document.createElement('iframe');
+      gfaFrame.title = 'Aviation Weather Center Graphical Forecasts for Aviation';
+      gfaFrame.referrerPolicy = 'no-referrer';
+      gfaWrap.appendChild(gfaFrame);
+      document.body.appendChild(gfaWrap);
+      requestAnimationFrame(syncGfa);
+    }
+    const url = gfaUrl(b, slot.clientWidth || 900);
+    const key = url.replace(/&zoom=\d+/, '') + '|' + b.area.ids.join(' ') + '|' + b.area.radiusNm + '|' + b.area.route;
+    if (key !== gfaKey) { gfaKey = key; gfaFrame.src = url; }
+  }
+  // Keeps the frame over the slot: follows scrolling, folding, dragging and window resizing.
+  let gfaLast = '';
+  function syncGfa() {
+    const slot = document.getElementById('gfaSlot');
+    const r = slot && slot.getBoundingClientRect();
+    const show = r && r.width > 0 && r.height > 0;
+    const sig = show ? `${Math.round(r.left + scrollX)},${Math.round(r.top + scrollY)},${Math.round(r.width)},${Math.round(r.height)}` : 'off';
+    if (sig !== gfaLast) {
+      gfaLast = sig;
+      if (show) {
+        Object.assign(gfaWrap.style, { visibility: 'visible', left: `${r.left + scrollX}px`, top: `${r.top + scrollY}px`, width: `${r.width}px`, height: `${r.height}px` });
+      } else {
+        gfaWrap.style.visibility = 'hidden';
+      }
+    }
+    requestAnimationFrame(syncGfa);
   }
 
   // Signed-in user's name, account links and sign-out (only when the server has sign-ins turned on).
