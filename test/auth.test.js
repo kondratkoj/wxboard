@@ -23,13 +23,18 @@ test.after(() => { server.close(); fs.rmSync(process.env.WX_DATA_DIR, { recursiv
 // Minimal browser: keeps one cookie, sends Origin on posts.
 function browser() {
   let cookie = '';
-  const req = async (p, { method = 'GET', form, headers = {} } = {}) => {
+  const req = async (p, { method = 'GET', form, json, headers = {} } = {}) => {
     const h = { ...headers };
     if (cookie) h.Cookie = cookie;
     let body;
     if (form) {
       body = new URLSearchParams(form).toString();
       h['Content-Type'] = 'application/x-www-form-urlencoded';
+      if (!('Origin' in h)) h.Origin = base;
+    }
+    if (json !== undefined) {
+      body = JSON.stringify(json);
+      h['Content-Type'] = 'application/json';
       if (!('Origin' in h)) h.Origin = base;
     }
     const res = await fetch(base + p, { method: form ? 'POST' : method, headers: h, body, redirect: 'manual' });
@@ -183,4 +188,40 @@ test('passwords are stored hashed', () => {
   const raw = fs.readFileSync(path.join(process.env.WX_DATA_DIR, 'users.json'), 'utf8');
   assert.ok(!raw.includes('Sup3r-secret-admin'));
   assert.match(raw, /"hash": "scrypt\$/);
+});
+
+test('saved areas follow the account, with checks', async () => {
+  assert.equal((await browser().req('/api/areas')).status, 401, 'signed out');
+  await users.create({ username: 'areapilot', password: 'Holding-pattern-1' });
+  await users.create({ username: 'otherpilot', password: 'Holding-pattern-2' });
+  const one = browser();
+  await login(one, 'areapilot', 'Holding-pattern-1');
+  assert.deepEqual((await one.req('/api/areas')).json(), { areas: [] });
+  const csrf = (await one.req('/api/status')).json().user.csrf;
+  const put = (b, areas, headers = { 'X-CSRF-Token': csrf }) => b.req('/api/areas', { method: 'PUT', json: { areas }, headers });
+
+  const good = [
+    { label: '  Home   base ', ids: 'krue, kxna krue', radius: 40, route: false, default: true },
+    { label: 'Gulf run', ids: 'KTLH KPNS', radius: 999, route: true, default: true },
+  ];
+  assert.equal((await put(one, good, {})).status, 403, 'needs the form token');
+  assert.equal((await put(one, good, { 'X-CSRF-Token': csrf, Origin: 'https://evil.example' })).status, 403, 'same site only');
+  const saved = await put(one, good);
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.json().areas, [
+    { label: 'Home base', ids: 'KRUE KXNA', radius: 40, route: false, default: true },
+    { label: 'Gulf run', ids: 'KTLH KPNS', radius: 300, route: true }, // radius clamped, only one default kept
+  ]);
+
+  assert.match((await put(one, [{ label: 'x', ids: 'KRUE <b>' }])).json().error, /doesn't look like an airport ID/);
+  assert.match((await put(one, [{ label: '', ids: 'KRUE' }])).json().error, /needs a name/);
+  assert.equal((await put(one, Array.from({ length: 51 }, (_, i) => ({ label: 'a' + i, ids: 'KRUE' })))).status, 400);
+  assert.equal((await one.req('/api/areas', { method: 'POST', form: { x: '1' } })).status, 405);
+
+  const two = browser(); // another browser, same account
+  await login(two, 'areapilot', 'Holding-pattern-1');
+  assert.equal((await two.req('/api/areas')).json().areas[1].label, 'Gulf run');
+  const other = browser(); // a different account sees only its own
+  await login(other, 'otherpilot', 'Holding-pattern-2');
+  assert.deepEqual((await other.req('/api/areas')).json(), { areas: [] });
 });

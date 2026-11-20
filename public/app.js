@@ -5,6 +5,7 @@
   const REFRESH_MS = 5 * 60 * 1000;
   const STORE_KEY = 'wxboard.savedAreas';
   const DEFAULT_SAVED = []; // no built-in quick picks; each user saves their own
+  const LAST_KEY = 'wxboard.lastArea';
 
   let current = null;     // { ids, radius, route }
   let lastBrief = null;
@@ -17,11 +18,12 @@
   let status = { demo: false, notamsConfigured: false };
 
   // ---------- storage (best effort) ----------
-  function loadSaved() {
-    try { const v = JSON.parse(localStorage.getItem(STORE_KEY)); return Array.isArray(v) ? v : DEFAULT_SAVED; }
+  // Saved areas in this browser: used when sign-ins are off, and imported once into the account when they're on.
+  function loadLocalAreas() {
+    try { const v = JSON.parse(localStorage.getItem(STORE_KEY)); return Array.isArray(v) ? v.filter((a) => a && a.ids) : DEFAULT_SAVED; }
     catch { return DEFAULT_SAVED; }
   }
-  function storeSaved(list) { try { localStorage.setItem(STORE_KEY, JSON.stringify(list)); } catch {} }
+  function storeLocalAreas(list) { try { localStorage.setItem(STORE_KEY, JSON.stringify(list)); } catch {} }
 
   // ---------- formatting ----------
   const pad = (n, w = 2) => String(n).padStart(w, '0');
@@ -63,26 +65,133 @@
   // ---------- clock ----------
   setInterval(() => { const d = new Date(); $('#zulu').textContent = `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}Z`; }, 1000);
 
-  // ---------- saved areas ----------
-  function renderSaved() {
-    const list = loadSaved();
-    $('#saved').innerHTML = list.map((a, i) =>
-      `<span class="chip" data-i="${i}" title="${esc(a.ids)} · ${a.radius} nm${a.route ? ' · route' : ''}">${esc(a.label)}<button class="x" data-del="${i}" title="Remove">×</button></span>`).join('');
+  // ---------- saved areas of operation ----------
+  // Signed in: kept with the account on the server, so they follow the pilot to any browser or device.
+  // Sign-ins off (a personal install): kept in this browser.
+  let areas = [];
+  const IMPORTED_KEY = 'wxboard.savedAreas.imported';
+  const areasOnServer = () => Boolean(status.auth && status.user);
+  const areaTip = (a) => `${a.ids} · ${a.radius} nm${a.route ? ' · route' : ''}${a.default ? ' · opens by default' : ''}`;
+
+  async function putAreas(list) {
+    const r = await fetch('/api/areas', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': status.user.csrf }, body: JSON.stringify({ areas: list }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) { location.href = '/login'; throw new Error('Signed out'); }
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    return j.areas;
   }
-  $('#saved').addEventListener('click', (e) => {
+  async function loadAreas() {
+    if (!areasOnServer()) { areas = loadLocalAreas(); return; }
+    try {
+      const r = await fetch('/api/areas');
+      if (!r.ok) throw new Error(((await r.json().catch(() => ({}))).error) || r.statusText);
+      areas = (await r.json()).areas || [];
+      // One time per browser: move areas saved here before they were kept with the account.
+      let imported = '1';
+      try { imported = localStorage.getItem(IMPORTED_KEY); } catch {}
+      const local = loadLocalAreas();
+      if (local.length && !imported) {
+        const extra = local.filter((l) => !areas.some((a) => a.label === l.label && a.ids === String(l.ids).toUpperCase()))
+          .map((l) => ({ label: l.label || l.ids, ids: l.ids, radius: l.radius, route: Boolean(l.route) }));
+        if (extra.length) areas = await putAreas([...areas, ...extra].slice(0, 50));
+        try { localStorage.setItem(IMPORTED_KEY, '1'); } catch {}
+      }
+    } catch (e) {
+      showBanner(`Couldn't load your saved areas: ${esc(e.message)}`, true);
+    }
+  }
+  // Returns '' on success, or the reason it failed.
+  async function saveAreas(list) {
+    if (!areasOnServer()) { storeLocalAreas(list); areas = list; renderSaved(); return ''; }
+    try { areas = await putAreas(list); renderSaved(); return ''; }
+    catch (e) { return e.message || 'Save failed'; }
+  }
+
+  function renderSaved() {
+    const el = $('#saved');
+    if (!areas.length) { el.innerHTML = ''; return; }
+    el.innerHTML = areas.map((a, i) =>
+      `<span class="chip${a.default ? ' chip-default' : ''}" data-i="${i}" ${popAttr(areaTip(a))}>${a.default ? '<span class="star" aria-label="Default">★</span>' : ''}${esc(a.label)}<button class="x" data-del="${i}" aria-label="Remove ${esc(a.label)}">×</button></span>`).join('')
+      + '<button type="button" class="btn sm" id="areasEdit">Edit areas</button>';
+  }
+  $('#saved').addEventListener('click', async (e) => {
+    if (e.target.closest('#areasEdit')) { openAreasDialog(); return; }
     const del = e.target.closest('[data-del]');
-    const list = loadSaved();
-    if (del) { list.splice(Number(del.dataset.del), 1); storeSaved(list); renderSaved(); e.stopPropagation(); return; }
+    if (del) {
+      e.stopPropagation();
+      const list = areas.filter((_, i) => i !== Number(del.dataset.del));
+      const err = await saveAreas(list);
+      if (err) showBanner(`Couldn't remove the area: ${esc(err)}`, true);
+      return;
+    }
     const chip = e.target.closest('.chip');
-    if (chip) { const a = list[Number(chip.dataset.i)]; setForm(a); run(a); }
+    if (chip) { const a = areas[Number(chip.dataset.i)]; if (a) { setForm(a); run(a); } }
   });
-  $('#saveArea').addEventListener('click', () => {
+  $('#saveArea').addEventListener('click', async () => {
     const a = readForm();
     if (!a.ids) return;
     const label = prompt('Name for this area', `${a.ids} ${a.radius}nm${a.route ? ' route' : ''}`);
     if (!label) return;
-    const list = loadSaved(); list.push({ ...a, label }); storeSaved(list); renderSaved();
+    const err = await saveAreas([...areas, { ...a, label }]);
+    if (err) showBanner(`Couldn't save the area: ${esc(err)}`, true);
   });
+
+  // Editor: rename, change airports/radius/route, reorder, remove, pick the default. Changes are saved together.
+  function openAreasDialog(draft) {
+    let d = document.getElementById('areasDlg');
+    if (!d) { d = document.createElement('div'); d.id = 'areasDlg'; document.body.appendChild(d); }
+    draft = draft || areas.map((a) => ({ ...a }));
+    const rows = draft.map((a, i) => `<div class="ar-row" data-i="${i}">
+        <label class="fld ar-name"><span>Name</span><input data-f="label" maxlength="40" value="${esc(a.label)}"></label>
+        <label class="fld ar-ids"><span>Airports</span><input data-f="ids" spellcheck="false" value="${esc(a.ids)}"></label>
+        <label class="fld ar-rad"><span>Radius nm</span><input data-f="radius" type="number" min="5" max="300" step="5" value="${esc(a.radius)}"></label>
+        <label class="chk small"><input data-f="route" type="checkbox" ${a.route ? 'checked' : ''}> Route</label>
+        <label class="chk small" ${popAttr('Briefed automatically when you open wxboard without airports in the address.')}><input type="radio" name="arDefault" data-f="default" ${a.default ? 'checked' : ''}> Default</label>
+        <span class="ar-btns"><button class="btn sm" data-armove="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button class="btn sm" data-armove="1" ${i === draft.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button><button class="btn sm" data-ardel>Remove</button></span>
+      </div>`).join('');
+    const where = areasOnServer() ? 'Saved with your account, so they show up on any device you sign in on.' : 'Saved in this browser.';
+    d.innerHTML = `<div class="dlg ar-dlg"><h3>Areas of operation</h3>
+      <div class="ar-list">${rows || '<div class="muted small">No saved areas yet. Add the airports you have entered above, or a blank one.</div>'}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" id="arAddCur">Add current airports</button><button class="btn sm" id="arAddBlank">Add blank</button>
+        <button class="btn sm" id="arNoDefault" ${draft.some((a) => a.default) ? '' : 'disabled'}>No default</button></div>
+      <div class="lk-err" id="arErr"></div>
+      <p class="muted small">${where} Airports are 3–4 letter IDs separated by spaces, up to 12 per area. <b>Route</b> checks a corridor between them in order. The <b>Default</b> area is briefed when you open wxboard.</p>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="arCancel">Cancel</button><button class="btn primary" id="arSave">Save changes</button></div></div>`;
+    d.classList.add('on');
+    const rowOf = (el) => Number(el.closest('.ar-row').dataset.i);
+    d.querySelectorAll('.ar-row input').forEach((inp) => inp.addEventListener(inp.type === 'checkbox' || inp.type === 'radio' ? 'change' : 'input', () => {
+      const a = draft[rowOf(inp)], f = inp.dataset.f;
+      if (f === 'route') a.route = inp.checked;
+      else if (f === 'default') draft.forEach((x, j) => { x.default = j === rowOf(inp); });
+      else if (f === 'radius') a.radius = Number(inp.value);
+      else a[f] = f === 'ids' ? inp.value.toUpperCase() : inp.value;
+    }));
+    d.querySelectorAll('[data-armove]').forEach((b) => (b.onclick = () => {
+      const i = rowOf(b), j = i + Number(b.dataset.armove);
+      if (j < 0 || j >= draft.length) return;
+      [draft[i], draft[j]] = [draft[j], draft[i]]; openAreasDialog(draft);
+    }));
+    d.querySelectorAll('[data-ardel]').forEach((b) => (b.onclick = () => { draft.splice(rowOf(b), 1); openAreasDialog(draft); }));
+    d.querySelector('#arAddCur').onclick = () => {
+      const f = readForm();
+      draft.push({ label: f.ids ? f.ids.split(/\s+/).slice(0, 3).join(' ') : 'New area', ids: f.ids, radius: f.radius, route: f.route });
+      openAreasDialog(draft);
+    };
+    d.querySelector('#arAddBlank').onclick = () => { draft.push({ label: '', ids: '', radius: status.defaultRadiusNm || 30, route: false }); openAreasDialog(draft); };
+    d.querySelector('#arNoDefault').onclick = () => { draft.forEach((x) => { x.default = false; }); openAreasDialog(draft); };
+    d.querySelector('#arCancel').onclick = () => d.classList.remove('on');
+    d.onclick = (e) => { if (e.target === d) d.classList.remove('on'); };
+    d.querySelector('#arSave').onclick = async () => {
+      const btn = d.querySelector('#arSave');
+      btn.disabled = true;
+      const list = draft.map((a) => ({ label: String(a.label || '').trim(), ids: String(a.ids || '').trim().toUpperCase(), radius: Number(a.radius) || 30, route: Boolean(a.route), default: Boolean(a.default) }));
+      const blank = list.findIndex((a) => !a.label || !a.ids);
+      const err = blank >= 0 ? `Area ${blank + 1} needs a name and at least one airport.` : await saveAreas(list);
+      btn.disabled = false;
+      if (err) { d.querySelector('#arErr').textContent = err; return; }
+      d.classList.remove('on');
+    };
+  }
 
   // ---------- form ----------
   function readForm() {
@@ -121,6 +230,8 @@
     if (runCtrl) runCtrl.abort();
     const ctrl = runCtrl = new AbortController();
     current = area;
+    // Remembered per browser, so opening wxboard again brings back the last brief.
+    try { localStorage.setItem(LAST_KEY, JSON.stringify({ ids: area.ids, radius: area.radius, route: Boolean(area.route) })); } catch {}
     const qs = new URLSearchParams({ ids: area.ids, radius: area.radius, route: area.route ? '1' : '0' });
     history.replaceState(null, '', '?' + qs);
     if (!quiet) { $('#updated').innerHTML = '<span class="spin"></span> loading'; showLoader(area); }
@@ -306,7 +417,7 @@
   document.addEventListener('focusout', (e) => { if (e.target.closest(POP_SEL)) hideInfo(); });
   document.addEventListener('click', (e) => {
     const i = e.target.closest(POP_SEL);
-    if (i && i.matches('a[href]')) { infoPinned = null; infoPop.classList.remove('on'); return; } // a link: just follow it
+    if (i && i.matches('a[href], .chip')) { infoPinned = null; infoPop.classList.remove('on'); return; } // a link or area chip: just follow it
     if (i) { infoPinned = infoPinned === i ? null : i; if (infoPinned) showInfo(i); else infoPop.classList.remove('on'); e.stopPropagation(); return; }
     if (!e.target.closest('#infoPop')) { infoPinned = null; infoPop.classList.remove('on'); }
   });
@@ -1460,17 +1571,31 @@
   }
 
   // ---------- start ----------
+  // The last brief in this browser, if it still looks valid.
+  function lastArea() {
+    try {
+      const v = JSON.parse(localStorage.getItem(LAST_KEY));
+      if (v && typeof v.ids === 'string' && v.ids.trim()) return { ids: v.ids.slice(0, 80), radius: Number(v.radius) || 30, route: Boolean(v.route) };
+    } catch {}
+    return null;
+  }
   async function init() {
-    renderSaved();
     renderLinks();
     try { status = await (await fetch('/api/status')).json(); } catch {}
     baseBanner();
     renderUserMenu();
     if (status.defaultRadiusNm) $('#radius').value = status.defaultRadiusNm;
+    await loadAreas();
+    renderSaved();
     const p = new URLSearchParams(location.search);
+    const def = areas.find((a) => a.default);
     if (p.get('ids')) {
       const a = { ids: p.get('ids'), radius: Number(p.get('radius')) || status.defaultRadiusNm || 30, route: p.get('route') === '1' };
       setForm(a); run(a);
+    } else if (def) {
+      setForm(def); run(def);
+    } else if (lastArea()) {
+      const a = lastArea(); setForm(a); run(a);
     } else {
       $('#ids').focus();
     }
