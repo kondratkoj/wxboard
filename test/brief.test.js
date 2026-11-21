@@ -23,3 +23,20 @@ test('demo brief builds every section', async () => {
   }
   assert.equal(b.forecast.data.length, 2);
 });
+
+test('the current METAR is the newest one any request returned', async () => {
+  const awc = require('../lib/sources/awc');
+  const real = { byIds: awc.metarsByIds, hist: awc.metarHistory };
+  const b0 = await buildBrief({ ids: 'KLIT', radius: 30 });
+  const cur = b0.metars.data.find((m) => m.id === 'KLIT');
+  const base = (await real.byIds(['KLIT'])).find((m) => m.icaoId === 'KLIT');
+  const newer = { ...base, obsTime: cur.obsTime / 1000 + 3600, rawOb: 'METAR KLIT NEWER' }; // AWC times are seconds
+  awc.metarHistory = async () => [...(await real.hist(['KLIT'], 6)), newer];
+  try {
+    const b = await buildBrief({ ids: 'KLIT', radius: 30 });
+    const klit = b.metars.data.find((m) => m.id === 'KLIT');
+    assert.equal(klit.obsTime, cur.obsTime + 3600e3);
+    assert.equal(klit.raw, 'METAR KLIT NEWER');
+    assert.deepEqual(b.stale, []);
+  } finally { awc.metarHistory = real.hist; }
+});

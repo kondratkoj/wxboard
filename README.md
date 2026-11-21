@@ -32,6 +32,7 @@ The FAA allows **one data pull every 3 minutes** (more gets HTTP 429) and **one 
 
 ## Notes and limits
 
+- If a weather source can't be refreshed, wxboard keeps using its last good copy (up to 3 hours) instead of blanking the panel, but it always says so: a red **Old data** chip in the alert strip names the source and the copy's age, and the server log prints `Source problem:` when a source starts failing and `Source OK again:` when it recovers. The airport cards always use the newest METAR any request returned, so a card can't show an older report than the METAR trend.
 - Not an FAA-approved briefing source. Use it alongside an official briefing.
 - Flight categories use the standard thresholds: LIFR <500 ft / <1 SM, IFR <1000 / <3, MVFR 1000–3000 / 3–5, VFR above that. Station categories come from AWC when provided.
 - In route mode, hazard and station checks use the true corridor. The wxboard map draws a line plus circles at each airport as an approximation; the GFA is centered on the whole route but doesn't draw it.

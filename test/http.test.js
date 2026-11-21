@@ -32,6 +32,45 @@ test('serves stale data on failure and backs off before retrying', async () => {
   assert.equal(calls, 2, 'second call must not hit the failing source again');
 });
 
+test('an old copy is never silent: trackStale lists it, and logs say so once', async () => {
+  await http.getJson('https://x.test/m/metar', 60);
+  const goodAt = http._cache.get('https://x.test/m/metar').at -= 61e3;
+  reply = () => ({ throws: 'network down' });
+  const errs = []; const oldErr = console.error; console.error = (m) => errs.push(m);
+  try {
+    const one = await http.trackStale(() => http.getJson('https://x.test/m/metar', 60));
+    assert.deepEqual(one.value, { n: 1 });
+    assert.equal(one.stale.length, 1);
+    assert.equal(one.stale[0].source, 'x.test metar');
+    assert.equal(one.stale[0].since, goodAt);
+    assert.match(one.stale[0].error, /network down/);
+    // still within the retry wait: served from cache without asking again, and still flagged
+    const two = await http.trackStale(() => http.getJson('https://x.test/m/metar', 60));
+    assert.equal(two.stale.length, 1);
+    assert.equal(calls, 2);
+    // a fresh copy is not flagged
+    reply = () => ({ status: 200, ok: true, body: '{"n":3}' });
+    const fresh = await http.trackStale(() => http.getJson('https://x.test/other', 60));
+    assert.deepEqual(fresh.stale, []);
+  } finally { console.error = oldErr; }
+  assert.equal(errs.filter((m) => /Source problem: x\.test metar/.test(m)).length, 1, 'logged once');
+});
+
+test('a request shared with a failing one is flagged for every caller', async () => {
+  await http.getJson('https://x.test/s', 60);
+  http._cache.get('https://x.test/s').at -= 61e3;
+  reply = () => ({ throws: 'down' });
+  const oldErr = console.error; console.error = () => {};
+  try {
+    const [a, b] = await Promise.all([
+      http.trackStale(() => http.getJson('https://x.test/s', 60)),
+      http.trackStale(() => http.getJson('https://x.test/s', 60)),
+    ]);
+    assert.equal(a.stale.length, 1);
+    assert.equal(b.stale.length, 1);
+  } finally { console.error = oldErr; }
+});
+
 test('a failure with no stale copy is remembered briefly', async () => {
   reply = () => ({ status: 503, ok: false, body: 'down' });
   await assert.rejects(http.getJson('https://x.test/c', 60), /503/);

@@ -954,6 +954,11 @@
       const up = mine.filter((n) => n.status === 'upcoming').length;
       items.push(chip('', `${mine.length - up} active NOTAMs · ${up} upcoming at your airports`, 'panel:notams'));
     }
+    // A source that couldn't be refreshed: the brief used its last good copy. Never silent.
+    for (const st of b.stale || []) {
+      const since = Date.parse(st.since);
+      items.push(`<span class="alert red" ${popAttr(`${st.source} couldn't be refreshed (${st.error}). This brief uses the last copy it got, from ${zt(since)}. Check the source directly before relying on it.`)}>Old data: ${esc(st.source)} from ${ago(since).replace(' ago', '')} ago</span>`);
+    }
     const failedNames = ['metars', 'tafs', 'pireps', 'sigmets', 'cwas', 'gairmets', 'tfrs', 'notams', 'forecast', 'winds', 'trend', 'lamp'].filter((k) => b[k] && !b[k].ok);
     if (failedNames.length) items.push(`<span class="alert red">Failed to load: ${failedNames.join(', ')}</span>`);
     if (!items.length) items.push('<span class="alert">No advisories, TFRs or urgent PIREPs in this area</span>');
