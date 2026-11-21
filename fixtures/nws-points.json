@@ -10,7 +10,8 @@
      "city": "Russellville",
      "state": "AR"
     }
-   }
+   },
+   "timeZone": "America/Chicago"
   }
  }
-}
+}

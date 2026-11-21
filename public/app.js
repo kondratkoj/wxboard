@@ -291,32 +291,185 @@
   const isCollapsed = (id) => layout.collapsed.includes(id);
 
   // ---------- minimums (14 CFR 135.609 table + risk bands) ----------
-  const MN = window.Minimums, SUN = window.Sun;
+  const MN = window.Minimums, SUN = window.Sun, TR = window.Terrain;
   const MINS_KEY = 'wxboard.mins.v1';
   let mins = (() => {
-    try { const v = JSON.parse(localStorage.getItem(MINS_KEY)); if (v) return { ...MN.DEFAULTS, ...v, bands: { ...MN.DEFAULTS.bands, ...(v.bands || {}) } }; } catch {}
+    try {
+      const v = JSON.parse(localStorage.getItem(MINS_KEY));
+      if (v) {
+        const m = { ...MN.DEFAULTS, ...v, bands: { ...MN.DEFAULTS.bands, ...(v.bands || {}) } };
+        // Terrain used to be a single fixed choice (default Non-mountainous). Switch everyone to automatic once;
+        // a fixed choice made after that is kept.
+        if (!v.terrainAuto) m.terrain = 'auto';
+        return m;
+      }
+    } catch {}
     return JSON.parse(JSON.stringify(MN.DEFAULTS));
   })();
-  const saveMins = () => { try { localStorage.setItem(MINS_KEY, JSON.stringify(mins)); } catch {} };
+  const saveMins = () => { mins.terrainAuto = 1; try { localStorage.setItem(MINS_KEY, JSON.stringify(mins)); } catch {} };
   const phaseAt = (ms, lat, lon) => (lat == null || !SUN ? 'day' : SUN.isNight(ms, lat, lon) ? 'night' : 'day');
+  // 14 CFR Part 95 answer for a place (cached; positions repeat a lot).
+  const terrCache = new Map();
+  function partNinetyFive(lat, lon) {
+    if (!TR || lat == null || lon == null) return null;
+    const k = `${(+lat).toFixed(3)},${(+lon).toFixed(3)}`;
+    if (!terrCache.has(k)) terrCache.set(k, TR.classify(lat, lon));
+    return terrCache.get(k);
+  }
+  // Which 135.609 row to use at a place: automatic from Part 95, or the fixed choice in Minimums.
+  function terrainFor(lat, lon) {
+    const info = partNinetyFive(lat, lon);
+    if (mins.terrain === 'mtn' || mins.terrain === 'non') return { terrain: mins.terrain, fixed: true, info };
+    return { terrain: info && info.mtn ? 'mtn' : 'non', fixed: false, info };
+  }
+  function terrainNote(tf) {
+    if (!tf) return '';
+    if (!tf.fixed) return `Terrain (automatic): ${TR ? TR.describe(tf.info) : 'unknown'}`;
+    const set = `Terrain is set to always use ${tf.terrain === 'mtn' ? 'Mountainous' : 'Non-mountainous'} in Minimums.`;
+    return tf.info && tf.info.mtn != null && tf.info.mtn !== (tf.terrain === 'mtn') ? `${set} 14 CFR Part 95 says otherwise here: ${TR.describe(tf.info)}` : set;
+  }
+  // Part 91: surface airspace class at a place, from the brief (the server tags every airport, station and TAF site).
+  const posKey = (lat, lon) => `${(+lat).toFixed(3)},${(+lon).toFixed(3)}`;
+  let asIndex = { brief: null, map: new Map() };
+  function airspaceAt(lat, lon, ms) {
+    if (lat == null || lon == null || !lastBrief) return null;
+    if (asIndex.brief !== lastBrief) {
+      const map = new Map(), b = lastBrief;
+      const add = (x) => { if (x && x.lat != null && x.airspace !== undefined) map.set(posKey(x.lat, x.lon), x.airspace); };
+      ((b.area && b.area.anchors) || []).forEach(add);
+      if (b.metars && b.metars.ok) b.metars.data.forEach(add);
+      if (b.tafs && b.tafs.ok) b.tafs.data.forEach(add);
+      asIndex = { brief: b, map };
+    }
+    const a = asIndex.map.get(posKey(lat, lon)) ?? null;
+    return ms == null ? a : effectiveAirspace(a, ms);
+  }
+  // Part-time surface areas: which class is in effect at `ms`, from the FAA's published hours (public/airspace-hours.js).
+  const AH = window.AirspaceHours, parsedSched = new Map();
+  function effectiveAirspace(a, ms) {
+    if (!a || !a.sched || !AH) return a;
+    if (!parsedSched.has(a.sched)) parsedSched.set(a.sched, AH.parse(a.sched));
+    const p = parsedSched.get(a.sched), r = AH.classAt(p, ms, a.tz);
+    return { ...a, cls: r.cls || a.cls, partTime: r.inEffect == null ? a.partTime : false, inEffect: r.inEffect, why: r.why, parsed: p, base: a };
+  }
+  // When does the class next change (within 36 h)? → { at, cls } or null
+  function nextAirspaceChange(a, from) {
+    if (!a || !a.sched || !AH) return null;
+    const now = effectiveAirspace(a, from);
+    if (now.inEffect == null) return null;
+    for (let t = Math.ceil(from / 300e3) * 300e3; t < from + 36 * 3600e3; t += 300e3) {
+      const e = effectiveAirspace(a, t);
+      if (e.cls !== now.cls) return { at: t, cls: e.cls };
+    }
+    return null;
+  }
+  const AS_NAME = { B: 'Class B', C: 'Class C', D: 'Class D', E: 'Class E', G: 'Class G' };
+  function airspaceNote(a) {
+    if (a && a.sched) {
+      const p = a.parsed || (AH ? AH.parse(a.sched) : null);
+      const now = a.inEffect == null
+        ? `wxboard can't tell from these hours whether it is in effect, so the ${AS_NAME[a.cls] || a.cls} minimums are used (the more restrictive).`
+        : a.inEffect ? `In effect at this time: ${AS_NAME[a.cls]}.` : `Not in effect at this time, so the surface is ${AS_NAME[a.cls]}.`;
+      const nt = a.notams && a.notams.length ? ` ${a.notams.length} NOTAM${a.notams.length > 1 ? 's' : ''} at ${a.ident} mention the tower or airspace and can change these hours: "${a.notams[0].text.slice(0, 160)}${a.notams[0].text.length > 160 ? '…' : ''}"` : '';
+      return `${a.name || 'Surface area'} (${a.ident}). Published hours (FAA NASR): ${p && p.kind !== 'unparsed' ? AH.describe(p) : a.sched}${a.tz ? ` (${a.tz})` : ''}. ${now}${nt}`;
+    }
+    if (!a) return 'Surface airspace unknown (the FAA airspace lookup failed or this place wasn\'t in it), so the surface-area minimums (1,000 ft / 3 SM) are used.';
+    if (a.cls === 'G') return 'Class G at the surface (no Class B/C/D/E surface area here, per FAA airspace data).';
+    return `${a.name || AS_NAME[a.cls] + ' surface area'}${a.partTime ? '. Part-time: the FAA data says its hours are set by NOTAM or a schedule, and wxboard can\'t tell whether it is in effect now, so the surface-area minimums are used. When it is not in effect the surface airspace may be Class E or G.' : '.'}`;
+  }
+  // The limits that apply at a place and phase, for the chosen rule set.
+  function limitsAt(phase, lat, lon, ms = Date.now()) {
+    if (mins.rules === '91') { const a = airspaceAt(lat, lon, ms); return { lim: MN.limits91(phase, a, mins), place: { kind: 'airspace', airspace: a } }; }
+    const terr = terrainFor(lat, lon);
+    return { lim: MN.limitsFor(phase, mins, terr.terrain), place: { kind: 'terrain', terr } };
+  }
+  const placeNote = (p) => (!p ? '' : p.kind === 'airspace' ? airspaceNote(p.airspace) : terrainNote(p.terr));
   // Risk for a ceiling/visibility at a time and place. Returns null when minimums are turned off.
   function riskAt(ceilFt, visSM, ms, lat, lon) {
     if (!mins.enabled || !MN) return null;
-    const phase = phaseAt(ms, lat, lon);
-    const lim = MN.limitsFor(phase, mins);
-    return { ...MN.assess(ceilFt, visSM, lim, mins.bands), phase, lim };
+    const phase = phaseAt(ms, lat, lon), { lim, place } = limitsAt(phase, lat, lon, ms);
+    return { ...MN.assess(ceilFt, visSM, lim, mins.bands), phase, lim, place };
   }
   // A TAF period can span day and night: judge it against every phase it touches and keep the worst.
   function riskForPeriod(ceilFt, visSM, from, to, lat, lon) {
     if (!mins.enabled || !MN) return null;
-    const phases = new Set([from, (from + to) / 2, to - 60e3].map((t) => phaseAt(t, lat, lon)));
-    const rs = [...phases].map((ph) => ({ ...MN.assess(ceilFt, visSM, MN.limitsFor(ph, mins), mins.bands), phase: ph, lim: MN.limitsFor(ph, mins) }));
+    // Judge at the start, middle and end (and hourly in between for long periods): day/night and part-time airspace can change.
+    const times = [from, (from + to) / 2, to - 60e3];
+    for (let t = from + 3600e3; t < to - 60e3; t += 3600e3) times.push(t);
+    const seen = new Set(), rs = [];
+    for (const t of times) {
+      const ph = phaseAt(t, lat, lon), { lim, place } = limitsAt(ph, lat, lon, t);
+      const k = `${ph}|${lim.ceil}|${lim.vis}|${lim.label}`;
+      if (seen.has(k)) continue; seen.add(k);
+      rs.push({ ...MN.assess(ceilFt, visSM, lim, mins.bands), phase: ph, lim, place });
+    }
     return rs.reduce((w, r) => (MN.LEVELS.indexOf(r.level) > MN.LEVELS.indexOf(w.level) ? r : w), rs[0]);
+  }
+  // ---------- regulation citations, with the server's daily eCFR check ----------
+  const BAD_REG = ['amended', 'removed', 'text-changed'];
+  const regItem = (sec) => { const r = lastBrief && lastBrief.regs; return r && r.items ? r.items.find((i) => i.section === sec) : null; };
+  function regState(sec) {
+    const it = regItem(sec), r = lastBrief && lastBrief.regs;
+    if (!it || it.status === 'unchecked' || it.status === 'unknown') return { bad: false, text: 'not yet checked against eCFR on this server' };
+    if (BAD_REG.includes(it.status)) {
+      const what = it.status === 'amended' ? `amended ${it.latest}` : it.status === 'removed' ? 'removed or reserved' : 'reworded';
+      return { bad: true, text: `CHANGED: eCFR shows this section ${what}, after wxboard was checked against it (${r.verified}). Check the current regulation before relying on these colors.` };
+    }
+    return { bad: false, text: `checked current on eCFR ${r.checkedAt ? zt(Date.parse(r.checkedAt)).replace(/Z$/, 'Z') : ''}`.trim() };
+  }
+  // [[section, cite-text, what]] → one hover paragraph, e.g. "Rules: 14 CFR 91.155(c), (d) (surface area) — checked current…"
+  function citeText(list) {
+    const parts = list.map(([sec, cite, what]) => { const st = regState(sec); return `14 CFR ${cite}${what ? ` (${what})` : ''}${st.bad ? ` ⚠ ${st.text}` : ''}`; });
+    const ok = list.every(([sec]) => !regState(sec).bad);
+    const tail = ok && list.length ? ` — ${regState(list[0][0]).text}.` : '';
+    return `Rules: ${parts.join('; ')}${tail}`;
+  }
+  function limCites(r) {
+    const out = [];
+    if (r.lim.rule === '91') {
+      out.push(['91.155', r.lim.ref, r.lim.cls === 'G' ? 'Class G table' : 'surface area: 1,000 ft ceiling, 3 SM']);
+      if (r.level === 'red' && r.lim.cls !== 'G') out.push(['91.157', '91.157', 'Special VFR']);
+    } else {
+      out.push(['135.609', '135.609(a)', 'HAA table']);
+      const t = r.place && r.place.terr;
+      if (t && !t.fixed && t.info && t.info.section) out.push([t.info.section, t.info.section, `${t.info.area} mountainous area`]);
+      else if (t && !t.fixed) out.push(['95.11', '95 Subpart B', 'not in a mountainous area']);
+    }
+    if (r.phase === 'night') out.push(['1.1', '1.1', 'night']);
+    return citeText(out);
+  }
+  const limText = (lim) => `${lim.noCeil ? 'no ceiling minimum' : lim.ceil.toLocaleString() + ' ft'} / ${lim.vis} SM`;
+  function svfrNote(lim) {
+    if (lim.rule !== '91' || lim.cls === 'G') return '';
+    return mins.aircraft === 'plane'
+      ? ' Below basic VFR in a surface area: Special VFR (91.157) needs an ATC clearance, clear of clouds and 1 SM; at night only with an instrument rating and an IFR-equipped aircraft.'
+      : ' Below basic VFR in a surface area: Special VFR (91.157) needs an ATC clearance; a helicopter needs only to stay clear of clouds (no visibility minimum), day or night.';
   }
   function riskBadge(r) {
     if (!r) return '';
-    const tip = `${r.lim.label}: ${r.lim.ceil} ft / ${r.lim.vis} SM${r.reasons.length ? ' — ' + r.reasons.join('; ') : ''}${r.partial ? ' (visibility unknown)' : ''}`;
-    return `<span class="risk risk-${r.level}" ${popAttr(tip)}>${r.label}${r.partial ? '*' : ''}</span>`;
+    const tip = `${r.lim.label}: ${limText(r.lim)}${r.reasons.length ? ' — ' + r.reasons.join('; ') : ''}${r.partial ? ' (visibility unknown)' : ''}.${r.level === 'red' ? svfrNote(r.lim) : ''} ${placeNote(r.place)}`;
+    const cites = limCites(r), bad = cites.includes('⚠');
+    const html = `${esc(tip)}<br><br><span class="${bad ? 'reg-bad' : 'reg-ok'}">${esc(cites)}</span>`;
+    return `<span class="risk risk-${r.level}${bad ? ' reg-flag' : ''}" data-info="${encodeURIComponent(html)}" tabindex="0">${r.label}${r.partial ? '*' : ''}${bad ? ' ⚠' : ''}</span>`;
+  }
+  // Small tag on an airport card: MTN when the mountainous row is used, a warning near a Part 95 line or when a fixed
+  // terrain setting disagrees with Part 95.
+  function terrainTag(lat, lon) {
+    if (!mins.enabled) return '';
+    if (mins.rules === '91') {
+      const now = Date.now(), a = airspaceAt(lat, lon, now);
+      if (!a) return ` <span class="tag warn" ${popAttr(airspaceNote(a))}>Airspace?</span>`;
+      const nx = nextAirspaceChange(a.base || a, now);
+      const notam = a.notams && a.notams.length ? ` <span class="tag warn" ${popAttr(airspaceNote(a))}>NOTAM</span>` : '';
+      return ` <span class="tag ${a.partTime ? 'warn' : a.cls === 'G' ? '' : 'blue'}" ${popAttr(airspaceNote(a))}>${a.cls}${a.partTime ? ' PT' : ''}</span>${nx ? ` <span class="muted small" style="white-space:nowrap" ${popAttr(`Changes to ${AS_NAME[nx.cls]} at ${hhL(nx.at)} your local time (${zt(nx.at)}), from the published hours.`)}>→${nx.cls} ${hhL(nx.at)}</span>` : ''}${notam}`;
+    }
+    const tf = terrainFor(lat, lon), i = tf.info;
+    const near = i && i.edgeNm != null && i.edgeNm < 10;
+    if (tf.fixed && i && i.mtn != null && i.mtn !== (tf.terrain === 'mtn'))
+      return ` <span class="tag warn" ${popAttr(terrainNote(tf))}>${tf.terrain === 'mtn' ? 'MTN' : 'NON-MTN'} (set)</span>`;
+    if (tf.terrain === 'mtn') return ` <span class="tag ${near ? 'warn' : 'blue'}" ${popAttr(terrainNote(tf))}>MTN${near ? ' · edge' : ''}</span>`;
+    if (near) return ` <span class="tag warn" ${popAttr(terrainNote(tf))}>MTN edge</span>`;
+    return '';
   }
   // Next sun events (sunrise/sunset/civil twilight) in the next 24 h, local time.
   function sunLine(lat, lon) {
@@ -327,33 +480,198 @@
     return ev.map((e) => `${names[e.type]} ${lt(e.at)}`).join(' · ');
   }
 
+  // Route mode: does the straight line between airports pass through a designated mountainous area? (checked every ~5 nm)
+  function routeTerrain(anchors) {
+    const legs = [];
+    for (let i = 1; i < anchors.length; i++) {
+      const a = anchors[i - 1], b = anchors[i];
+      if (a.lat == null || b.lat == null) continue;
+      const nm = Math.hypot((b.lat - a.lat) * 60, (b.lon - a.lon) * 60 * Math.cos((a.lat * Math.PI) / 180));
+      const n = Math.max(2, Math.ceil(nm / 5));
+      let mtn = 0;
+      for (let k = 0; k <= n; k++) { const c = partNinetyFive(a.lat + ((b.lat - a.lat) * k) / n, a.lon + ((b.lon - a.lon) * k) / n); if (c && c.mtn) mtn++; }
+      legs.push({ from: a.id, to: b.id, mtn, of: n + 1 });
+    }
+    return legs;
+  }
+
+  // ---------- Minimums dialog ----------
+  // Sections fold; which are open (and the Now / Day / Night view) is remembered per browser.
+  const MINS_UI_KEY = 'wxboard.minsDlg.v1';
+  let minsUi = (() => { try { return { brief: true, setup: true, bands: true, table: false, show: 'now', ...JSON.parse(localStorage.getItem(MINS_UI_KEY) || '{}') }; } catch { return { brief: true, setup: true, bands: true, table: false, show: 'now' }; } })();
+  const saveMinsUi = () => { try { localStorage.setItem(MINS_UI_KEY, JSON.stringify(minsUi)); } catch {} };
+  const fmtFt = (n) => `${Number(n).toLocaleString()} ft`;
+  const fmtSm = (n) => `${+Number(n).toFixed(2)} SM`;
+
   function openMinsDialog() {
     let d = document.getElementById('minsDlg');
     if (!d) { d = document.createElement('div'); d.id = 'minsDlg'; document.body.appendChild(d); }
-    const r = (name, val, label) => `<label class="chk"><input type="radio" name="${name}" value="${val}" ${mins[name] === val ? 'checked' : ''}> ${label}</label>`;
-    const n = (k, label, step) => `<label class="fld"><span>${label}</span><input type="number" step="${step}" min="0" data-band="${k}" value="${mins.bands[k]}"></label>`;
-    const T = MN.HAA_135_609;
-    const row = (k, title) => `<tr><td>${title}</td>${['day', 'night', 'nvg'].map((c) => `<td class="mono">${T[k][c][0].toLocaleString()}-${T[k][c][1]}</td>`).join('')}</tr>`;
-    d.innerHTML = `<div class="dlg"><h3>Weather minimums</h3>
-      <label class="chk"><input type="checkbox" id="mEnabled" ${mins.enabled ? 'checked' : ''}> Check conditions against minimums</label>
-      <div class="dlg-grid">
-        <div><div class="lbl">Terrain (14 CFR 95)</div>${r('terrain', 'non', 'Non-mountainous')}${r('terrain', 'mtn', 'Mountainous')}</div>
-        <div><div class="lbl">Flying area</div>${r('area', 'xc', 'Cross-country (non-local)')}${r('area', 'local', 'Local flying area')}</div>
-        <div><div class="lbl">At night</div>${r('nightMode', 'nvg', 'NVG (aided)')}${r('nightMode', 'unaided', 'Unaided')}</div>
-      </div>
-      <div class="lbl">Risk bands (margin above the limit)</div>
-      <div class="dlg-grid">${n('amberCeil', 'Amber if ceiling within (ft)', 50)}${n('amberVis', 'Amber if visibility within (SM)', 0.5)}${n('critCeil', 'Amber Critical if ceiling within (ft)', 50)}${n('critVis', 'Amber Critical if visibility within (SM)', 0.5)}</div>
-      <details><summary class="small">14 CFR 135.609(a) table (ceiling ft – visibility SM)</summary>
-        <table class="small"><thead><tr><th></th><th>Day</th><th>Night</th><th>Night NVIS/HTAWS</th></tr></thead><tbody>
-        ${row('non-local', 'Non-mountainous local')}${row('non-xc', 'Non-mountainous non-local')}${row('mtn-local', 'Mountainous local')}${row('mtn-xc', 'Mountainous non-local')}</tbody></table></details>
-      <p class="muted small">Night = end of evening civil twilight to start of morning civil twilight (14 CFR 1.1), worked out per airport. Defaults: non-local rows, NVG at night, Amber within 700 ft / 3 SM and Amber Critical within 200 ft / 2 SM of a limit. Set these to match your operator's procedures. A reading aid, not a flight release.</p>
+    const keepScroll = d.querySelector('.dlg') ? d.querySelector('.dlg').scrollTop : 0;
+    const B = mins.bands, p91 = mins.rules === '91';
+    const seg = (name, opts, val = mins[name]) => `<div class="seg" role="group">${opts.map(([v, label, tip]) =>
+      `<button type="button" class="seg-b${val === v ? ' on' : ''}" data-seg="${name}" data-val="${v}" aria-pressed="${val === v}" ${tip ? popAttr(tip) : ''}>${label}</button>`).join('')}</div>`;
+    const sec = (id, title, sum, body) => `<details class="mins-sec" data-sec="${id}" ${minsUi[id] ? 'open' : ''}>
+      <summary><span class="ms-t">${title}</span><span class="ms-sum">${sum}</span></summary><div class="ms-body">${body}</div></details>`;
+    const ceilTxt = (lim, v) => (lim.noCeil && v === lim.ceil ? 'none' : fmtFt(v));
+    const anchors = (lastBrief && lastBrief.area && lastBrief.area.anchors) || [];
+
+    // --- Color bands, drawn as a ladder for one example limit ---
+    const ex0 = anchors[0];
+    const exLim = ex0 ? limitsAt(phaseAt(Date.now(), ex0.lat, ex0.lon), ex0.lat, ex0.lon, Date.now()).lim
+      : p91 ? MN.limits91('day', null, mins) : MN.limitsFor('day', mins, mins.terrain === 'mtn' ? 'mtn' : 'non');
+    const th = MN.thresholds(exLim, B);
+    const ladder = (kind, t, fmt, critKey, amberKey, unit, step, noLimit) => {
+      const segs = [
+        ['red', 'Red', `below ${fmt(t.red)}`, !noLimit],
+        ['critical', 'Amber Crit', noLimit ? `below ${fmt(t.crit)}` : `${fmt(t.red)} to ${fmt(t.crit)}`, B[critKey] > 0],
+        ['amber', 'Amber', `${fmt(Math.max(t.crit, t.red))} to ${fmt(t.amber)}`, B[amberKey] > B[critKey]],
+        ['green', 'Green', `${fmt(Math.max(t.amber, t.crit))} and up`, true],
+      ].filter((x) => x[3]);
+      return `<div class="ladder">
+        <div class="lad-hd"><b>${kind}</b> <span class="muted small">${noLimit ? 'no ceiling minimum in this example' : `example limit ${fmt(t.red)}`}</span></div>
+        <div class="lad-bar">${segs.map(([c, l, range]) => `<span class="lad-seg risk-${c}"><b>${l}</b><small>${range}</small></span>`).join('')}</div>
+        <div class="lad-in">
+          <label>Amber Critical when within <input type="number" min="0" step="${step}" data-band="${critKey}" value="${B[critKey]}"> ${unit} of the limit</label>
+          <label>Amber when within <input type="number" min="0" step="${step}" data-band="${amberKey}" value="${B[amberKey]}"> ${unit} of the limit</label>
+        </div></div>`;
+    };
+    const probs = MN.bandProblems(B);
+    const bandsBody = `<p class="muted small" style="margin:0">Each margin is added on top of the limit for that airport and time. The worse of ceiling and visibility sets the color. Example: ${esc(exLim.label)}${ex0 ? ` at ${esc(ex0.id)} now` : ''}.${p91 ? ' In Class G there is no ceiling minimum, so a low ceiling there turns Amber or Amber Critical but never Red.' : ''}</p>
+      <div class="ladders">${ladder('Ceiling', th.ceil, fmtFt, 'critCeil', 'amberCeil', 'ft', 50, exLim.noCeil)}${ladder('Visibility', th.vis, fmtSm, 'critVis', 'amberVis', 'SM', 0.5, false)}</div>
+      ${probs.length ? `<div class="mins-warn small">${probs.map(esc).join('<br>')}</div>` : ''}`;
+    const bandsSum = `Amber ${B.amberCeil} ft / ${B.amberVis} SM · Crit ${B.critCeil} ft / ${B.critVis} SM`;
+
+    // --- Which minimums: the rule set, then its own choices ---
+    const rulesSeg = `<div class="ms-field"><div class="lbl">Minimums ${infoTip('<b>Part 135 HAA</b>: the 14 CFR 135.609(a) table (day / night / night NVIS-HTAWS; mountainous or not; local or cross-country).<br><br><b>Part 91 VFR</b>: the basic VFR minimums of 14 CFR 91.155 for the airspace at each airport\'s surface: 1,000 ft and 3 SM inside a Class B, C, D or E surface area, and the Class G visibility for your aircraft elsewhere. The surface airspace comes from the FAA\'s airspace data.')}</div>
+        ${seg('rules', [['135', 'Part 135 HAA (135.609)'], ['91', 'Part 91 VFR (91.155)']])}</div>`;
+    let setupBody, setupSum;
+    if (p91) {
+      setupBody = rulesSeg + `
+        <div class="ms-field"><div class="lbl">Aircraft ${infoTip('91.155 has different Class G minimums for helicopters, and 91.157 (Special VFR) treats helicopters differently.')}</div>
+          ${seg('aircraft', [['heli', 'Helicopter'], ['plane', 'Airplane']])}</div>
+        <p class="muted small" style="margin:0">Each airport is checked against the airspace at its surface: inside a Class B, C, D or E surface area you need a 1,000 ft ceiling and 3 SM (91.155(c), (d)); in Class G below 1,200 ft AGL, ${mins.aircraft === 'plane' ? '1 SM clear of clouds by day and 3 SM at night' : '½ SM by day and 1 SM at night, clear of clouds'}. Part-time surface areas (a part-time tower, an E2 by NOTAM) are treated as in effect and flagged.</p>`;
+      setupSum = `Part 91 VFR · ${mins.aircraft === 'plane' ? 'Airplane' : 'Helicopter'}`;
+    } else {
+      setupBody = rulesSeg + `
+        <div class="ms-field"><div class="lbl">Terrain ${infoTip('<b>Automatic</b> uses each airport\'s position and the designated mountainous areas in 14 CFR Part 95 Subpart B (Eastern US, Western US, Alaska, Hawaii, Puerto Rico, minus their exception areas). Airports within 10 nm of a boundary are flagged, because nearby terrain may be the other kind. The border and coastline legs of those areas are approximated.<br><br>Pick a fixed choice only if your operator tells you to.')}</div>
+          ${seg('terrain', [['auto', 'Automatic (14 CFR 95)'], ['non', 'Always non-mountainous'], ['mtn', 'Always mountainous']])}</div>
+        <div class="ms-field"><div class="lbl">Flying area ${infoTip('135.609(a) has separate rows for flights inside a <b>local flying area</b> (as your operator defines it) and for cross-country (non-local) flights.')}</div>
+          ${seg('area', [['xc', 'Cross-country (non-local)'], ['local', 'Local flying area']])}</div>
+        <div class="ms-field"><div class="lbl">At night ${infoTip('NVG uses the 135.609(a) column for night with NVIS or HTAWS. Night is from the end of evening civil twilight to the start of morning civil twilight (14 CFR 1.1), worked out per airport.')}</div>
+          ${seg('nightMode', [['nvg', 'NVG (aided)'], ['unaided', 'Unaided']])}</div>`;
+      const terrainName = { auto: 'Terrain automatic', non: 'Always non-mountainous', mtn: 'Always mountainous' }[mins.terrain] || 'Terrain automatic';
+      setupSum = `Part 135 HAA · ${terrainName} · ${mins.area === 'local' ? 'Local' : 'Cross-country'} · Night ${mins.nightMode === 'unaided' ? 'unaided' : 'NVG'}`;
+    }
+
+    // --- This brief: each airport's terrain or airspace, current limits and where the colors change ---
+    let briefBody, briefSum;
+    if (!anchors.length) {
+      briefBody = '<p class="muted small">Brief an area to see the limits for each airport here.</p>';
+      briefSum = 'no brief yet';
+    } else {
+      const now = Date.now();
+      const rows = anchors.map((a) => {
+        const ph = minsUi.show === 'day' || minsUi.show === 'night' ? minsUi.show : phaseAt(now, a.lat, a.lon);
+        const { lim, place } = limitsAt(ph, a.lat, a.lon, now), t = MN.thresholds(lim, B);
+        let pcell;
+        if (place.kind === 'airspace') {
+          const as = place.airspace;
+          pcell = `<span class="tag ${!as || as.partTime ? 'warn' : as.cls === 'G' ? '' : 'blue'}" ${popAttr(airspaceNote(as))}>${as ? AS_NAME[as.cls] || as.cls : 'Unknown'}${as && as.partTime ? ' · part-time' : ''}</span>`;
+        } else {
+          const tf = place.terr;
+          pcell = `<span class="tag ${tf.terrain === 'mtn' ? 'blue' : ''}" ${popAttr(terrainNote(tf))}>${tf.terrain === 'mtn' ? 'Mountainous' : 'Non-mtn'}${tf.fixed ? ' (set)' : ''}</span>${tf.info && tf.info.edgeNm != null && tf.info.edgeNm < 10 ? ` <span class="tag warn" ${popAttr(TR.describe(tf.info))}>edge ${Math.round(tf.info.edgeNm)} nm</span>` : ''}`;
+        }
+        const pair = (c, v) => `<span class="mono">${ceilTxt(lim, c)}</span><br><span class="mono">${fmtSm(v)}</span>`;
+        return `<tr><td><b>${esc(a.id)}</b>${minsUi.show === 'now' ? `<div class="muted small">${ph === 'night' ? 'Night now' : 'Day now'}</div>` : ''}</td><td>${pcell}</td>
+          <td class="mb-red">${pair(t.ceil.red, t.vis.red)}</td>
+          <td class="mb-crit">${B.critCeil || B.critVis ? pair(t.ceil.crit, t.vis.crit) : '—'}</td>
+          <td class="mb-amber">${pair(t.ceil.amber, t.vis.amber)}</td></tr>`;
+      }).join('');
+      let note = '';
+      if (!p91 && current && current.route && anchors.length > 1) {
+        const legs = routeTerrain(anchors).filter((l) => l.mtn > 0);
+        if (legs.length) note = `<p class="small mins-note">Route legs that pass through a designated mountainous area: ${legs.map((l) => `<b>${esc(l.from)}–${esc(l.to)}</b>${l.mtn === l.of ? ' (all of it)' : ' (part)'}`).join(', ')}. The checks above use each airport's own terrain; the 135.609 row for the en-route part is your call.</p>`;
+      }
+      if (p91 && lastBrief.airspace && !lastBrief.airspace.ok) note = `<p class="small mins-warn">The FAA airspace lookup failed for ${lastBrief.airspace.failed || 'some'} of ${lastBrief.airspace.asked || '?'} places (${esc(lastBrief.airspace.error || 'no answer')}). Those use the surface-area minimums until the next refresh.</p>`;
+      if (p91) {
+        const nSfc = anchors.filter((a) => { const as = airspaceAt(a.lat, a.lon); return !as || as.cls !== 'G'; }).length;
+        briefSum = `${anchors.length} airport${anchors.length > 1 ? 's' : ''} · ${nSfc} in a surface area · ${anchors.length - nSfc} Class G`;
+      } else {
+        const nMtn = anchors.filter((a) => terrainFor(a.lat, a.lon).terrain === 'mtn').length;
+        briefSum = `${anchors.length} airport${anchors.length > 1 ? 's' : ''} · ${nMtn ? `${nMtn} mountainous` : 'all non-mountainous'}`;
+      }
+      briefBody = `<div class="ms-row"><span class="muted small">Show limits for</span>${seg('show', [['now', 'Now'], ['day', 'Day'], ['night', 'Night']], minsUi.show)}</div>
+        <table class="mins-brief small"><thead><tr><th>Airport</th><th>${p91 ? 'Surface airspace' : 'Terrain'}</th>
+          <th ${popAttr(p91 ? 'The 91.155 limit. Below it is Red (in a surface area, Special VFR is the only way to fly). Class G has no ceiling minimum.' : 'The 14 CFR 135.609(a) limit. Below it is Red.')}>Limit<br><span class="muted">Red below</span></th>
+          <th ${popAttr('From the limit up to this value is Amber Critical.')}>Amber Crit<br><span class="muted">below</span></th>
+          <th ${popAttr('From Amber Critical up to this value is Amber. At or above it (ceiling and visibility both) is Green.')}>Amber below<br><span class="muted">Green at/above</span></th></tr></thead>
+        <tbody>${rows}</tbody></table>${note}`;
+    }
+
+    // --- The regulation table, with the cells in use marked ---
+    let tableTitle, tableBody;
+    if (p91) {
+      const heli = mins.aircraft !== 'plane';
+      const r91 = (on, where, day, night) => `<tr class="${on ? 'use' : ''}"><td>${where}</td><td class="mono${on ? ' on' : ''}">${day}</td><td class="mono${on ? ' on' : ''}">${night}</td></tr>`;
+      tableTitle = '14 CFR 91.155 / 91.157 (what wxboard checks)';
+      tableBody = `<table class="small mins-reg"><thead><tr><th></th><th>Day</th><th>Night</th></tr></thead><tbody>
+        ${r91(true, 'Class B, C, D or E surface area (91.155(c), (d))', '1,000 ft – 3 SM', '1,000 ft – 3 SM')}
+        ${r91(heli, 'Class G ≤1,200 ft AGL, helicopter (91.155(a))', 'clear of clouds – ½ SM', 'clear of clouds – 1 SM')}
+        ${r91(!heli, 'Class G ≤1,200 ft AGL, airplane (91.155(a))', 'clear of clouds – 1 SM', '500 below / 1,000 above / 2,000 horiz – 3 SM')}
+        ${r91(false, 'Special VFR in a surface area (91.157), with ATC clearance', heli ? 'clear of clouds – no vis min (helicopter)' : 'clear of clouds – 1 SM', heli ? 'same (helicopter)' : 'only IFR-rated pilot + IFR-equipped')}
+        </tbody></table>
+        <p class="muted small" style="margin:6px 0 0">Highlighted: the rows wxboard uses for your aircraft. Not covered: cloud clearances above 1,200 ft AGL or 10,000 ft MSL, the Class G traffic-pattern allowances in 91.155(b), and company minimums. Special VFR is shown for reference only; the colors use basic VFR.</p>`;
+    } else {
+      const T = MN.HAA_135_609;
+      const usedRows = mins.terrain === 'auto' ? ['non', 'mtn'] : [mins.terrain];
+      const nightCol = mins.nightMode === 'unaided' ? 'night' : 'nvg';
+      const tRow = (k, title) => {
+        const rowOn = usedRows.some((t) => `${t}-${mins.area === 'local' ? 'local' : 'xc'}` === k);
+        return `<tr class="${rowOn ? 'use' : ''}"><td>${title}</td>${['day', 'night', 'nvg'].map((c) => `<td class="mono${rowOn && (c === 'day' || c === nightCol) ? ' on' : ''}">${T[k][c][0].toLocaleString()} ft – ${T[k][c][1]} SM</td>`).join('')}</tr>`;
+      };
+      tableTitle = '14 CFR 135.609(a) table';
+      tableBody = `<table class="small mins-reg"><thead><tr><th></th><th>Day</th><th>Night</th><th>Night NVIS/HTAWS</th></tr></thead><tbody>
+        ${tRow('non-local', 'Non-mountainous local')}${tRow('non-xc', 'Non-mountainous non-local')}${tRow('mtn-local', 'Mountainous local')}${tRow('mtn-xc', 'Mountainous non-local')}</tbody></table>
+        <p class="muted small" style="margin:6px 0 0">Highlighted: the cells your settings use. Company (GOM) minimums aren't built in; set the bands to match your operator's procedures.</p>`;
+    }
+
+    // Regulation check: what the server found on eCFR for every section the minimums rely on.
+    const R = lastBrief && lastBrief.regs;
+    const regBad = R ? (R.changed || []).length : 0;
+    const regList = !R ? '<p class="muted small" style="margin:6px 0 0">Brief an area to see the regulation check.</p>'
+      : `<div class="lbl" style="margin-top:8px">Regulation check ${infoTip(`The server asks eCFR once a day whether each section below has been amended, removed or reworded since wxboard's minimums were checked against it (${esc(R.verified)}). A change turns on a red chip in the alert strip and a ⚠ on every minimums badge that relies on it.`)}</div>
+        <div class="reg-list">${R.items.map((i) => {
+          const bad = BAD_REG.includes(i.status);
+          const st = bad ? (i.status === 'amended' ? `CHANGED: amended ${i.latest}` : i.status === 'removed' ? 'CHANGED: removed' : 'CHANGED: reworded')
+            : i.status === 'current' ? `current${i.latest ? ` · last amended ${i.latest}` : ''}` : 'not checked yet';
+          return `<div class="rl"><span class="mono">14 CFR ${esc(i.section)}</span><span class="muted">${esc(i.uses || '')}</span><b class="${bad ? 'bad' : i.status === 'current' ? 'ok' : ''}">${esc(st)}</b></div>`;
+        }).join('')}</div>
+        <p class="muted small" style="margin:4px 0 0">${R.checkedAt ? `Last check ${esc(zt(Date.parse(R.checkedAt)))}` : 'The first check runs about 20 seconds after the server starts.'}${R.overdue ? ' · <span class="stale">eCFR not reached for 7+ days</span>' : ''}</p>`;
+
+    d.innerHTML = `<div class="dlg mins-dlg">
+      <div class="mins-top"><h3>Weather minimums</h3>
+        <label class="switch"><input type="checkbox" id="mEnabled" ${mins.enabled ? 'checked' : ''}><span></span> Check conditions against minimums</label></div>
+      ${mins.enabled ? '' : '<p class="muted small" style="margin:0">Off: cards, TAF rows, the trend and the shift outlook are colored by flight category only.</p>'}
+      ${sec('bands', 'Color bands', bandsSum, bandsBody)}
+      ${sec('setup', 'Which minimums', setupSum, setupBody)}
+      ${sec('brief', 'This brief', briefSum, briefBody)}
+      ${sec('table', tableTitle, `${p91 ? 'basic VFR' : 'ceiling – visibility'} · ${!R ? '' : regBad ? `<span class="stale">${regBad} regulation${regBad > 1 ? 's' : ''} changed</span>` : 'regulations checked'}`, tableBody + regList)}
+      <p class="muted small" style="margin:0">A reading aid, not a flight release. The PIC and the operator make that call. Saved in this browser.</p>
       <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" id="mReset">Reset to defaults</button><button class="btn primary" id="mClose">Done</button></div></div>`;
     d.classList.add('on');
-    const apply = () => { saveMins(); if (lastBrief) render(lastBrief); };
+    d.querySelector('.dlg').scrollTop = keepScroll;
+    const apply = () => { saveMins(); if (lastBrief) render(lastBrief); openMinsDialog(); };
     d.querySelector('#mEnabled').onchange = (e) => { mins.enabled = e.target.checked; apply(); };
-    d.querySelectorAll('input[type=radio]').forEach((i) => (i.onchange = () => { mins[i.name] = i.value; apply(); }));
-    d.querySelectorAll('input[data-band]').forEach((i) => (i.onchange = () => { const v = Number(i.value); if (Number.isFinite(v) && v >= 0) { mins.bands[i.dataset.band] = v; apply(); } }));
-    d.querySelector('#mReset').onclick = () => { mins = JSON.parse(JSON.stringify(MN.DEFAULTS)); apply(); openMinsDialog(); };
+    d.querySelectorAll('[data-seg]').forEach((b) => (b.onclick = () => {
+      if (b.dataset.seg === 'show') { minsUi.show = b.dataset.val; saveMinsUi(); openMinsDialog(); return; }
+      mins[b.dataset.seg] = b.dataset.val; apply();
+    }));
+    d.querySelectorAll('input[data-band]').forEach((i) => (i.onchange = () => {
+      const v = Number(i.value);
+      if (Number.isFinite(v) && v >= 0) { mins.bands[i.dataset.band] = v; apply(); } else i.value = mins.bands[i.dataset.band];
+    }));
+    d.querySelectorAll('details.mins-sec').forEach((s) => s.addEventListener('toggle', () => { minsUi[s.dataset.sec] = s.open; saveMinsUi(); }));
+    d.querySelector('#mReset').onclick = () => { mins = JSON.parse(JSON.stringify(MN.DEFAULTS)); apply(); };
     d.querySelector('#mClose').onclick = () => d.classList.remove('on');
     d.onclick = (e) => { if (e.target === d) d.classList.remove('on'); };
   }
@@ -953,7 +1271,7 @@
           <b>Observed</b><span class="${stale ? 'stale' : ''}">${zt(m.obsTime)} · ${ago(m.obsTime)}${stale ? ' · OLD' : ''}</span>
           <b>Shift <span class="muted">${hhL(outlookStart())}–${hhL(outlookStart() + outlook.hours * 3600e3)}</span></b><span>${shiftBadge(b, { ...a, lat, lon, id })}</span>
           <b>TAF next 6h</b><span>${t ? `${cat(t.worstNext6)}${t.worstNext6Tempo && t.worstNext6Tempo !== t.worstNext6 ? ` <span class="muted small">TEMPO/PROB</span> ${cat(t.worstNext6Tempo)}` : ''}${rTaf ? ' ' + riskBadge(rTaf) : ''}` : '<span class="muted">No TAF</span>'}</span>
-          ${rNow ? `<b ${popAttr('The latest METAR checked against your minimums. The Shift and TAF rows above are the forecast.')}>Minimums now</b><span>${riskBadge(rNow)} <span class="muted small">${esc(rNow.lim.label.split(',')[0])} ${rNow.lim.ceil}-${rNow.lim.vis}</span>${mins.terrain === 'non' && MN.maybeMountainous(lat, lon) ? ' <span class="tag warn" title="This airport may be inside a 14 CFR Part 95 designated mountainous area. Check, and switch Terrain to Mountainous in Minimums if so.">MTN?</span>' : ''}</span>` : ''}
+          ${rNow ? `<b ${popAttr('The latest METAR checked against your minimums. The Shift and TAF rows above are the forecast.')}>Minimums now</b><span>${riskBadge(rNow)} <span class="muted small">${esc(rNow.lim.label.split(',')[0])} ${rNow.lim.noCeil ? `${rNow.lim.vis} SM` : `${rNow.lim.ceil}-${rNow.lim.vis}`}</span>${terrainTag(lat, lon)}</span>` : ''}
           <b>Sun</b><span class="small">${sunLine(lat, lon)}</span>
         </div></div>`;
     }).join('')}</div>`;
@@ -987,6 +1305,14 @@
       if (crit) items.push(chip('red', `${crit} critical NOTAM${crit === 1 ? '' : 's'} at your airports`, 'notams:critical'));
       const up = mine.filter((n) => n.status === 'upcoming').length;
       items.push(chip('', `${mine.length - up} active NOTAMs · ${up} upcoming at your airports`, 'panel:notams'));
+    }
+    // A regulation behind the minimums has changed since wxboard was checked against it (server checks eCFR daily).
+    if (b.regs) {
+      for (const c of b.regs.changed || []) {
+        const what = c.status === 'amended' ? `amended ${c.latest}` : c.status === 'removed' ? 'removed' : 'reworded';
+        items.push(`<span class="alert red" ${popAttr(`14 CFR ${c.section} (${c.uses}) is ${what} on eCFR, after wxboard's minimums were checked against it on ${b.regs.verified}. Until wxboard is updated, check the minimums colors against the current regulation yourself.${c.missing && c.missing.length ? ` Text no longer found: "${c.missing.join('", "')}".` : ''}`)}>Regulation changed: 14 CFR ${esc(c.section)}</span>`);
+      }
+      if (b.regs.overdue) items.push(`<span class="alert hot" ${popAttr(`The server hasn't been able to reach eCFR to confirm the regulations behind the minimums are current${b.regs.lastOkAt ? ` since ${zt(Date.parse(b.regs.lastOkAt))}` : ''}.`)}>Regulations not confirmed for 7+ days</span>`);
     }
     // A source that couldn't be refreshed: the brief used its last good copy. Never silent.
     for (const st of b.stale || []) {
@@ -1630,18 +1956,36 @@
     { name: 'Windy', url: 'https://www.windy.com/?{lat},{lon},8', color: '#A71C20', info: 'Windy model forecasts, centered on your first airport.' },
     { name: 'COD Sat/Radar', url: 'https://weather.cod.edu/satrad/', color: '#1F6B3A', info: 'College of DuPage NEXLAB satellite and radar.' },
     { name: '1800wxbrief', url: 'https://www.1800wxbrief.com/', color: '#850F88', info: 'Leidos Flight Service: standard briefings and flight plans.' },
+    { name: 'SPC Outlooks', url: 'https://www.spc.noaa.gov/products/outlook/', color: '#B5651D',
+      info: 'NOAA Storm Prediction Center convective outlooks: Day 1, Day 2, Day 3 and Day 4–8 severe thunderstorm risk.' },
+    { name: 'NHC Outlooks', url: 'https://www.nhc.noaa.gov/gtwo.php', color: '#00758F',
+      info: 'NOAA National Hurricane Center Tropical Weather Outlook (graphical and text): Atlantic and Eastern/Central Pacific.' },
   ];
+  // Defaults added after a pilot first edited their list are appended to it once (they can still remove them).
+  const LINKS_SEEN_KEY = 'wxboard.links.seenDefaults';
   function loadLinks() {
     try {
       const v = JSON.parse(localStorage.getItem(LINKS_KEY));
-      if (Array.isArray(v)) return v.filter((l) => l && l.name && safeUrl(l.url)).map((l) => {
-        const d = DEFAULT_LINKS.find((x) => x.url === l.url);
-        return { ...l, color: safeColor(l.color) || (d && d.color) || '', info: l.info || (d && d.info) || '' };
-      });
+      if (Array.isArray(v)) {
+        const list = v.filter((l) => l && l.name && safeUrl(l.url)).map((l) => {
+          const d = DEFAULT_LINKS.find((x) => x.url === l.url);
+          return { ...l, color: safeColor(l.color) || (d && d.color) || '', info: l.info || (d && d.info) || '' };
+        });
+        // Lists saved before the "seen" record existed had seen the first five defaults.
+        let seen; try { seen = JSON.parse(localStorage.getItem(LINKS_SEEN_KEY)); } catch {}
+        if (!Array.isArray(seen)) seen = DEFAULT_LINKS.slice(0, 5).map((d) => d.url);
+        const fresh = DEFAULT_LINKS.filter((d) => !seen.includes(d.url));
+        if (fresh.length) {
+          for (const d of fresh) if (!list.some((l) => l.url === d.url)) list.push({ ...d });
+          storeLinks(list);
+        }
+        return list;
+      }
     } catch {}
     return DEFAULT_LINKS.map((l) => ({ ...l }));
   }
-  const storeLinks = (list) => { try { localStorage.setItem(LINKS_KEY, JSON.stringify(list)); } catch {} };
+  // Saving a list means the pilot has seen every current default, so one they removed doesn't come back.
+  const storeLinks = (list) => { try { localStorage.setItem(LINKS_KEY, JSON.stringify(list)); localStorage.setItem(LINKS_SEEN_KEY, JSON.stringify(DEFAULT_LINKS.map((d) => d.url))); } catch {} };
   let linksFolded = (() => { try { return localStorage.getItem(LINKS_FOLD_KEY) === '1'; } catch { return false; } })();
   const safeColor = (c) => (/^#[0-9a-f]{6}$/i.test(String(c || '')) ? String(c) : '');
   // Only plain web links: refuses javascript:, data: and the like.

@@ -1,0 +1,125 @@
+{
+ "__byParam": "section",
+ "variants": {
+  "1.1": {
+   "meta": {
+    "latest_amendment_date": "2026-07-24",
+    "latest_issue_date": "2026-07-24"
+   },
+   "content_versions": [
+    {
+     "identifier": "1.1",
+     "removed": false
+    }
+   ]
+  },
+  "91.155": {
+   "meta": {
+    "latest_amendment_date": "2016-12-30",
+    "latest_issue_date": "2016-12-30"
+   },
+   "content_versions": [
+    {
+     "identifier": "91.155",
+     "removed": false
+    }
+   ]
+  },
+  "91.157": {
+   "meta": {
+    "latest_amendment_date": "2022-12-09",
+    "latest_issue_date": "2022-12-09"
+   },
+   "content_versions": [
+    {
+     "identifier": "91.157",
+     "removed": false
+    }
+   ]
+  },
+  "135.609": {
+   "meta": {
+    "latest_amendment_date": "2017-01-01",
+    "latest_issue_date": "2017-01-01"
+   },
+   "content_versions": [
+    {
+     "identifier": "135.609",
+     "removed": false
+    }
+   ]
+  },
+  "95.11": {
+   "meta": {
+    "latest_amendment_date": "2016-12-30",
+    "latest_issue_date": "2016-12-30"
+   },
+   "content_versions": [
+    {
+     "identifier": "95.11",
+     "removed": false
+    }
+   ]
+  },
+  "95.13": {
+   "meta": {
+    "latest_amendment_date": "2016-12-30",
+    "latest_issue_date": "2016-12-30"
+   },
+   "content_versions": [
+    {
+     "identifier": "95.13",
+     "removed": false
+    }
+   ]
+  },
+  "95.15": {
+   "meta": {
+    "latest_amendment_date": "2016-12-30",
+    "latest_issue_date": "2016-12-30"
+   },
+   "content_versions": [
+    {
+     "identifier": "95.15",
+     "removed": false
+    }
+   ]
+  },
+  "95.17": {
+   "meta": {
+    "latest_amendment_date": "2016-12-30",
+    "latest_issue_date": "2016-12-30"
+   },
+   "content_versions": [
+    {
+     "identifier": "95.17",
+     "removed": false
+    }
+   ]
+  },
+  "95.19": {
+   "meta": {
+    "latest_amendment_date": "2016-12-30",
+    "latest_issue_date": "2016-12-30"
+   },
+   "content_versions": [
+    {
+     "identifier": "95.19",
+     "removed": false
+    }
+   ]
+  },
+  "95.21": {
+   "meta": {
+    "latest_amendment_date": "2016-12-30",
+    "latest_issue_date": "2016-12-30"
+   },
+   "content_versions": [
+    {
+     "identifier": "95.21",
+     "removed": false
+    }
+   ]
+  }
+ }
+}

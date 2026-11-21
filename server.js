@@ -12,6 +12,8 @@ if (major < 18) {
 const config = require('./lib/config');
 const nms = require('./lib/sources/nms');
 const notamStore = require('./lib/notamStore');
+const regs = require('./lib/regs');
+const nasr = require('./lib/sources/nasr');
 const users = require('./lib/users');
 const { createServer } = require('./lib/app');
 
@@ -24,6 +26,8 @@ if (config.auth.enabled && !config.trustProxy && config.host !== '127.0.0.1' && 
 
 createServer().listen(config.port, config.host, () => {
   notamStore.start();
+  regs.start(); // daily check that the regulations behind the minimums haven't changed
+  nasr.start(); // FAA part-time airspace hours, once per 28-day cycle
   console.log(`\n  wxboard running at http://localhost:${config.port}`);
   console.log(`  Mode:    ${config.demo ? 'DEMO (sample data, not live). Try http://localhost:' + config.port + '/?ids=KLIT%20KXNA' : 'LIVE'}`);
   console.log(`  NOTAMs:  ${nms.configured() ? `enabled (${config.nms.env}${config.nms.env !== 'prod' ? ' - FAA TEST DATA, NOT REAL NOTAMS' : ''})` : 'not set up (add NMS credentials to config.json)'}`);
