@@ -1295,7 +1295,7 @@
       return `<tr><td class="mono"><b>${esc(pt.id)}</b><div class="muted small">elev ${pt.elevFt != null ? pt.elevFt.toLocaleString() : '?'} ft</div></td>
         ${alts.map((alt) => windCell(alt < floor ? null : interpAt(prof, alt))).join('')}</tr>`;
     }).join('');
-    return `<div class="muted small" style="padding:8px 14px 0">Forecast for ${zt(validAt)} (${ltDay(validAt)} local). Altitudes MSL, direction true. — = within 500 ft of the ground. Model winds (${esc(W.source)}), not an official NWS winds aloft forecast.</div>
+    return `<div class="muted small" style="padding:8px 14px 0">Forecast for ${zt(validAt)} (${ltDay(validAt)} local). Altitudes MSL, direction true. — = within 500 ft of the ground. Model winds (${esc(W.source)}${W.run ? `, GFS run ${pad(new Date(W.run).getUTCHours())}Z ${pad(new Date(W.run).getUTCDate())}` : ''}), not an official NWS winds aloft forecast. Refreshed when a new model run is out (every 6 h).</div>
       <div class="scroll"><table><thead><tr><th>Airport</th>${alts.map((l) => `<th>${l.toLocaleString()}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   function renderWinds(b) {
