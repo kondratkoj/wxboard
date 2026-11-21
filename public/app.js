@@ -814,7 +814,39 @@
     drawMap(b);
     setMapView(b);
     renderLinks();
+    renderJumpBar();
   }
+
+  // ---------- quick links ("Jump to") in the sticky header ----------
+  // One chip per panel, in the order the panels are on the page. Clicking scrolls to the panel,
+  // expands it if minimized and flashes it (same as the alert chips). Always shown; it doesn't fold.
+  const JUMP_LABELS = {
+    summary: 'Conditions', outlook: 'Shift outlook', map: 'Map', trend: 'METAR trend', airports: 'METAR and TAFs',
+    winds: 'Winds aloft', stations: 'Stations', notams: 'NOTAMs', advisories: 'Advisories', pireps: 'PIREPs',
+    tfrs: 'TFRs', forecast: 'Area forecast',
+  };
+  function renderJumpBar() {
+    const el = document.getElementById('jumpbar');
+    if (!el) return;
+    const secs = [...document.querySelectorAll('#app .panel[data-id]')];
+    if (!secs.length) { el.hidden = true; el.innerHTML = ''; return; }
+    el.hidden = false;
+    el.innerHTML = '<span class="jb-lbl">Jump to</span>' + secs.map((sec) => {
+      const id = sec.dataset.id;
+      const label = JUMP_LABELS[id] || (sec.querySelector('h3 .ttl') || {}).textContent || id;
+      const cnt = sec.querySelector(':scope > h3 > .count');
+      const min = sec.classList.contains('collapsed');
+      return `<a href="#" class="jb jump${min ? ' min' : ''}" data-jump="panel:${esc(id)}">${esc(label)}${cnt ? ` <span class="count">${esc(cnt.textContent)}</span>` : ''}</a>`;
+    }).join('');
+  }
+  // Keep scroll targets clear of the sticky header, whose height changes with the jump bar and window width.
+  (() => {
+    const top = document.querySelector('header.top');
+    if (!top) return;
+    const set = () => document.documentElement.style.setProperty('--hdr', `${Math.ceil(top.getBoundingClientRect().height) + 8}px`);
+    set();
+    if (window.ResizeObserver) new ResizeObserver(set).observe(top); else addEventListener('resize', set);
+  })();
 
   function setCollapsed(sec, on) {
     const id = sec.dataset.id;
@@ -823,6 +855,7 @@
     layout.collapsed = layout.collapsed.filter((x) => x !== id);
     if (on) layout.collapsed.push(id);
     if (id === 'map' && !on && mapView === 'wx') refreshMap();
+    renderJumpBar();
   }
 
   function bindLayoutTools() {
@@ -883,6 +916,7 @@
       if (sec.dataset.id === 'map' && mapView === 'wx') refreshMap();
       layout.cols = [...document.querySelectorAll('#app .col')].map((c) => [...c.querySelectorAll(':scope > .panel')].map((p) => p.dataset.id));
       saveLayout();
+      renderJumpBar();
     };
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
@@ -1034,7 +1068,7 @@
     return `<div class="scroll"><table><thead><tr><th>Time (Z)</th><th>Type</th><th>Cat</th><th>Wind</th><th>Vis</th><th>Wx</th><th>Clouds</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
-  // Fold state for the Airports panel, remembered per browser. Keys: "KDFW" (whole airport), "KDFW|metar",
+  // Fold state for the METAR and TAFs panel (id 'airports'), remembered per browser. Keys: "KDFW" (whole airport), "KDFW|metar",
   // "KDFW|tafraw", "KDFW|taftable". Defaults keep it short: raw TAF folded, decoded TAF table open.
   const APT_FOLD_KEY = 'wxboard.aptFold.v1';
   const aptFold = (() => { try { return JSON.parse(localStorage.getItem(APT_FOLD_KEY)) || {}; } catch { return {}; } })();
@@ -1062,10 +1096,10 @@
       return `<details class="apt afold-apt" data-afold="${esc(id)}" ${isOpen(id) ? 'open' : ''}><summary class="apt-sum">${head}</summary>
         <div class="apt-body">${metar}${taf}</div></details>`;
     }).join('');
-    if (!b.metars.ok && !b.tafs.ok) return panel('airports', 'Airports', null, failed(b.metars));
+    if (!b.metars.ok && !b.tafs.ok) return panel('airports', 'METAR and TAFs', null, failed(b.metars));
     const tools = `<div class="tools"><button class="btn sm" data-aptall="0">Minimize airports</button><button class="btn sm" data-aptall="1">Expand airports</button>
       <button class="btn sm" data-aptraw="1" title="Show or hide every raw TAF">Toggle raw TAFs</button></div>`;
-    return panel('airports', 'Airports', anchorIds.length, tools + blocks);
+    return panel('airports', 'METAR and TAFs', anchorIds.length, tools + blocks);
   }
   function bindAirportFolds() {
     document.querySelectorAll('.panel[data-id=airports] details[data-afold]').forEach((d) =>

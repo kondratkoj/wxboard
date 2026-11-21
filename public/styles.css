@@ -430,4 +430,14 @@ a.alert.jump:hover { filter: brightness(1.25); text-decoration: underline; text-
 a.alert.jump::after { content: ' ↓'; opacity: .55; }
 @keyframes flash { 0%, 60% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
 .flash { animation: flash 1.6s ease-out; border-radius: 10px; }
-html { scroll-padding-top: 90px; }
+html { scroll-padding-top: var(--hdr, 90px); }
+
+/* Quick links ("Jump to") row inside the sticky header */
+.jumpbar { flex-basis: 100%; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 13px; margin-top: -2px; }
+.jumpbar[hidden] { display: none; }
+.jumpbar .jb-lbl { color: var(--muted); padding: 2px 4px; }
+.jumpbar a.jb { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; background: var(--panel);
+  border: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.jumpbar a.jb:hover { border-color: var(--accent); }
+.jumpbar a.jb.min { color: var(--muted); border-style: dashed; }
+.jumpbar .count { background: var(--panel2); border-radius: 999px; padding: 0 6px; font-size: 11px; color: var(--muted); }

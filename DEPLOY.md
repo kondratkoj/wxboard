@@ -112,7 +112,7 @@ count next to the link.
 | List accounts | `docker compose exec wxboard node tools/admin.js list` |
 | Change sign-up rules | Edit `"signup"` in `config/config.json` (`approval`, `open`, `invite`, `closed`), then `docker compose restart wxboard` |
 | Change who sees NOTAMs | Edit `"notams"` (`all`, `admin`, `none`), then restart |
-| Update wxboard | Copy the new code over (keep `config/`, `data/`, `.env`), then `docker compose up -d --build` |
+| Update wxboard | Copy the new code over (keep `config/`, `data/`, `.env`), then `docker compose up -d --build`. From the Mac: `./deploy.sh`. From Windows: commit, then `powershell -ExecutionPolicy Bypass -File .\deploy.ps1` (sends the last commit) |
 | Back up | Copy the `data/` folder. `users.json` holds the accounts; `session.key` signs sign-ins (deleting it signs everyone out) |
 
 ## Optional extra protection in Cloudflare

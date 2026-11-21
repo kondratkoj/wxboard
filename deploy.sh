@@ -8,7 +8,7 @@ DIR=/opt/wxboard
 cd "$(dirname "$0")"
 
 rsync -av --exclude .git --exclude data --exclude test --exclude node_modules \
-  --exclude config.json --exclude config --exclude .env --exclude deploy.sh \
+  --exclude config.json --exclude config --exclude .env --exclude deploy.sh --exclude deploy.ps1 \
   ./ "$SERVER:$DIR/"
 
 ssh "$SERVER" "cd $DIR && docker compose up -d --build && docker compose ps"
