@@ -81,6 +81,26 @@ test('a failure with no stale copy is remembered briefly', async () => {
   assert.deepEqual(await http.getJson('https://x.test/c', 60), { n: 2 });
 });
 
+test('requests to a limited host wait their turn (Open-Meteo: 2 at a time)', async () => {
+  let inFlight = 0, peak = 0;
+  const realFetch = global.fetch;
+  global.fetch = async (url) => {
+    inFlight++; peak = Math.max(peak, inFlight);
+    await new Promise((r) => setTimeout(r, 20));
+    inFlight--;
+    return { status: 200, ok: true, text: async () => '{"n":1}' };
+  };
+  try {
+    const urls = Array.from({ length: 6 }, (_, i) => `https://api.open-meteo.com/v1/forecast?p=${i}`);
+    const out = await Promise.all(urls.map((u) => http.getJson(u, 60)));
+    assert.equal(out.length, 6);
+    assert.equal(peak, http.HOST_CONCURRENCY['api.open-meteo.com']);
+    peak = 0;
+    await Promise.all(Array.from({ length: 6 }, (_, i) => http.getJson(`https://other.test/x?p=${i}`, 60)));
+    assert.equal(peak, 6, 'other hosts are not limited');
+  } finally { global.fetch = realFetch; }
+});
+
 test('sweep drops old data and expired errors', async () => {
   await http.getJson('https://x.test/d', 60);
   await http.getJson('https://x.test/e', 60);
