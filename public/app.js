@@ -2087,6 +2087,50 @@
     d.onclick = (e) => { if (e.target === d) d.classList.remove('on'); };
   }
 
+  // ---------- What's new (CHANGELOG.md via /api/changelog) ----------
+  // The header button gets a dot while there's an entry newer than the last one you opened. Remembered per browser.
+  const NEWS_SEEN_KEY = 'wxboard.newsSeen';
+  let news = [];
+  const newsSeen = () => { try { return localStorage.getItem(NEWS_SEEN_KEY) || ''; } catch { return ''; } };
+  function markNewsDot() {
+    const b = $('#newsBtn'); if (!b) return;
+    b.classList.toggle('has-new', Boolean(news.length && news[0].date > newsSeen()));
+  }
+  async function loadNews() {
+    try {
+      const r = await fetch('/api/changelog');
+      if (r.ok) { const j = await r.json(); news = Array.isArray(j.entries) ? j.entries : []; }
+    } catch {}
+    markNewsDot();
+  }
+  // Escape first, then allow only **bold**, *italic* and `code`.
+  const newsInline = (t) => esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\*([^*\s][^*]*)\*/g, '<i>$1</i>');
+  function newsDate(d) {
+    const t = Date.parse(d + 'T12:00:00Z');
+    return Number.isFinite(t) ? new Date(t).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }) : d;
+  }
+  function openNewsDialog() {
+    let d = document.getElementById('newsDlg');
+    if (!d) { d = document.createElement('div'); d.id = 'newsDlg'; document.body.appendChild(d); }
+    const seen = newsSeen();
+    const body = news.length ? news.map((e) => `<div class="news-day"><div class="news-date">${esc(newsDate(e.date))}${seen && e.date > seen ? ' <span class="tag blue">NEW</span>' : ''}</div>
+        <ul>${e.items.map((i) => `<li${i.flag ? ' class="news-flag"' : ''}>${i.flag ? '<span class="tag warn">Changes how a brief reads</span> ' : ''}${newsInline(i.text)}</li>`).join('')}</ul></div>`).join('')
+      : '<div class="muted small">No updates listed yet.</div>';
+    d.innerHTML = `<div class="dlg news-dlg"><h3>What's new in wxboard</h3>
+      <p class="muted small" style="margin:0">Changes to the site, newest first. Items tagged <span class="tag warn">Changes how a brief reads</span> change what a badge, color or tag means, so read those before your next brief.</p>
+      <div class="news-list">${body}</div>
+      <div style="display:flex;justify-content:flex-end"><button class="btn primary" id="newsClose">Done</button></div></div>`;
+    d.classList.add('on');
+    if (news.length) { try { localStorage.setItem(NEWS_SEEN_KEY, news[0].date); } catch {} }
+    markNewsDot();
+    const close = () => { d.classList.remove('on'); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    d.querySelector('#newsClose').onclick = close;
+    d.onclick = (e) => { if (e.target === d) close(); };
+  }
+  $('#newsBtn').addEventListener('click', openNewsDialog);
+
   // ---------- start ----------
   // The last brief in this browser, if it still looks valid.
   function lastArea() {
@@ -2101,6 +2145,7 @@
     try { status = await (await fetch('/api/status')).json(); } catch {}
     baseBanner();
     renderUserMenu();
+    loadNews();
     if (status.defaultRadiusNm) $('#radius').value = status.defaultRadiusNm;
     await loadAreas();
     renderSaved();
