@@ -13,7 +13,11 @@
   let map = null, mapLayers = null, mapBounds = null, mapNeedsFit = false;
   let windsHr = 0;
   let windsMax = (() => { try { return Number(localStorage.getItem('wxboard.windsMax')) || 12000; } catch { return 12000; } })();
-  let notamScope = 'airport', notamFilter = '';
+  let notamScope = 'airport';
+  // Severity levels hidden from the NOTAM list (red = critical, amber = caution, normal = non-critical). Remembered per browser.
+  const NOTAM_PRI_KEY = 'wxboard.notamHiddenPri';
+  let notamHiddenPri = (() => { try { return new Set((JSON.parse(localStorage.getItem(NOTAM_PRI_KEY)) || []).filter((p) => ['red', 'amber', 'normal'].includes(p))); } catch { return new Set(); } })();
+  const saveNotamPri = () => { try { localStorage.setItem(NOTAM_PRI_KEY, JSON.stringify([...notamHiddenPri])); } catch {} };
   let notamWindow = (() => { try { const v = localStorage.getItem('wxboard.notamWindow'); return v === 'now' || v === 'all' ? v : Number(v) || 6; } catch { return 6; } })();
   let status = { demo: false, notamsConfigured: false };
 
@@ -1350,6 +1354,7 @@
       let rerender = false;
       if (notamScope !== 'airport') { notamScope = 'airport'; rerender = true; }
       if (notamWindow !== 'all' && notamWindow !== 'now') { notamWindow = 'now'; rerender = true; }
+      if (notamHiddenPri.has('red')) { notamHiddenPri.delete('red'); saveNotamPri(); rerender = true; } // the chip points at critical NOTAMs, so make sure they're shown
       if (rerender) render(lastBrief);
       const sec = openPanel('notams');
       let first = null;
@@ -1502,10 +1507,22 @@
   function notamPool(b) {
     return b.notams.data.items.filter((x) => notamScope === 'area' || x.scope === 'airport');
   }
+  // Everything the scope and time window allow, before the severity filter (used for the chip counts).
+  function notamBeforePri(b) {
+    return notamPool(b).filter(inWindow);
+  }
   function notamVisible(b) {
-    let items = notamPool(b).filter(inWindow);
-    if (notamFilter) { const q = notamFilter.toUpperCase(); items = items.filter((x) => `${x.airport} ${x.number} ${x.text} ${x.summary}`.toUpperCase().includes(q)); }
-    return items;
+    return notamBeforePri(b).filter((x) => !notamHiddenPri.has(x.pri));
+  }
+  const NOTAM_PRI = [['red', 'Critical'], ['amber', 'Caution'], ['normal', 'Non-critical']];
+  function notamPriChips(b) {
+    const all = notamBeforePri(b);
+    const help = 'Critical = could stop the flight (TFRs, runway/airport/heliport closures). Caution = changes how you fly it. Non-critical = everything else. These levels are wxboard\'s own reading of the NOTAM text; always check the raw NOTAM.';
+    return `<span class="muted small" data-info="${encodeURIComponent(esc(help))}" tabindex="0">Show:</span>` + NOTAM_PRI.map(([p, label]) => {
+      const n = all.filter((x) => x.pri === p).length;
+      const off = notamHiddenPri.has(p);
+      return `<button class="hchip npri npri-${p} ${off ? 'off' : 'on'}" data-npri="${p}" aria-pressed="${off ? 'false' : 'true'}">${label} <span class="count">${n}</span></button>`;
+    }).join('');
   }
   function whenText(x) {
     const s = Date.parse(x.start), e = Date.parse(x.end), t = Date.now();
@@ -1523,7 +1540,11 @@
   }
   function notamListHtml(b) {
     const items = notamVisible(b);
-    if (!items.length) return `<div class="none">No NOTAMs ${notamWindow === 'all' ? '' : 'in effect for this time window'}${notamFilter ? ' matching the filter' : ''}.</div>`;
+    if (!items.length) {
+      const hiddenN = notamBeforePri(b).length;
+      if (hiddenN) return `<div class="none">${hiddenN} NOTAM${hiddenN === 1 ? '' : 's'} hidden by the Critical / Caution / Non-critical buttons above.</div>`;
+      return `<div class="none">No NOTAMs ${notamWindow === 'all' ? '' : 'in effect for this time window'}.</div>`;
+    }
     const anchorIds = b.area.anchors.map((a) => a.id);
     const byApt = new Map();
     for (const x of items) { if (!byApt.has(x.airport)) byApt.set(x.airport, []); byApt.get(x.airport).push(x); }
@@ -1579,17 +1600,32 @@
       <div class="tabs"><button class="tab ${notamScope === 'airport' ? 'on' : ''}" data-scope="airport">Your airports (${nAirport})</button>
       <button class="tab ${notamScope === 'area' ? 'on' : ''}" data-scope="area" title="Every NOTAM with a location inside the ${n.data.areaRadiusNm} nm area">Whole area (${n.data.items.length})</button></div>
       <label class="chk small">In effect <select id="notamWin" class="sel">${NOTAM_WINDOWS.map(([v, l]) => `<option value="${v}" ${String(v) === String(notamWindow) ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <input type="search" id="notamQ" placeholder="Filter text…" value="${esc(notamFilter)}">
       <button class="btn sm" id="notamFoldAll" title="Minimize every airport">Minimize airports</button>
       <button class="btn sm" id="notamOpenAll" title="Expand every airport">Expand airports</button>
-    </div>${syncLine(n.data.sync)}`;
+    </div>
+    <div class="tools" id="notamPriTools">${notamPriChips(b)}</div>${syncLine(n.data.sync)}`;
     const testTag = status.nmsEnv && status.nmsEnv !== 'prod' ? `<span class="tag red">${esc(status.nmsEnv.toUpperCase())} TEST DATA, NOT REAL</span>` : '';
-    return panel('notams', 'NOTAMs', notamVisible(b).length, tools + `<div id="notamList">${notamListHtml(b)}</div>`, testTag);
+    const nShown = notamVisible(b).length, nAll = notamBeforePri(b).length;
+    return panel('notams', 'NOTAMs', nShown === nAll ? nShown : `${nShown}/${nAll}`, tools + `<div id="notamList">${notamListHtml(b)}</div>`, testTag);
   }
   function bindNotamCats() {
     document.querySelectorAll('#notamList details.ncat').forEach((d) => d.addEventListener('toggle', () => catOpen.set(d.dataset.key, d.open)));
   }
-  function refreshNotamList() { $('#notamList').innerHTML = notamListHtml(lastBrief); bindNotamCats(); }
+  // Re-draw only the list, the severity chips and the header count.
+  function refreshNotamList() {
+    $('#notamList').innerHTML = notamListHtml(lastBrief); bindNotamCats();
+    const pt = $('#notamPriTools'); if (pt) { pt.innerHTML = notamPriChips(lastBrief); bindNotamPri(); }
+    const cnt = document.querySelector('#app .panel[data-id="notams"] h3 > .count');
+    if (cnt) { const s = notamVisible(lastBrief).length, a = notamBeforePri(lastBrief).length; cnt.textContent = s === a ? s : `${s}/${a}`; }
+  }
+  function bindNotamPri() {
+    document.querySelectorAll('.hchip[data-npri]').forEach((c) => c.addEventListener('click', () => {
+      const p = c.dataset.npri;
+      if (notamHiddenPri.has(p)) notamHiddenPri.delete(p); else notamHiddenPri.add(p);
+      saveNotamPri();
+      refreshNotamList();
+    }));
+  }
   function bindNotamTools() {
     document.querySelectorAll('.tab[data-scope]').forEach((t) => t.addEventListener('click', () => { notamScope = t.dataset.scope; render(lastBrief); }));
     const w = $('#notamWin');
@@ -1598,12 +1634,11 @@
       try { localStorage.setItem('wxboard.notamWindow', String(notamWindow)); } catch {}
       render(lastBrief);
     });
-    const q = $('#notamQ');
-    if (q) q.addEventListener('input', () => { notamFilter = q.value; refreshNotamList(); });
     const setAll = (open) => document.querySelectorAll('#notamList details.napt').forEach((d) => { d.open = open; catOpen.set(d.dataset.key, open); });
     const fa = $('#notamFoldAll'), oa = $('#notamOpenAll');
     if (fa) fa.addEventListener('click', () => setAll(false));
     if (oa) oa.addEventListener('click', () => setAll(true));
+    bindNotamPri();
     bindNotamCats();
   }
 

@@ -8,7 +8,7 @@ Personal preflight weather board. Enter one or more airports and get, for that a
 - **Advisories:** SIGMETs/AIRMETs, Center Weather Advisories and G-AIRMETs that touch the area
 - **PIREPs** from the last 3 hours, with urgent reports flagged
 - **TFRs** that overlap or come within the radius
-- **NOTAMs,** split into Active and Upcoming (needs FAA NMS access, see below)
+- **NOTAMs,** split into Active and Upcoming (needs FAA NMS access, see below). **Show: Critical / Caution / Non-critical** buttons pick which levels are listed, in any combination (remembered per browser). The levels are wxboard's own reading of the NOTAM text. The filter only changes the NOTAM list: the alert strip and the shift outlook bars are unaffected, and the alert strip's critical-NOTAM link turns Critical back on.
 - **Winds aloft** over each airport, now and +3/6/12/24 hr, with a **max altitude** cutoff (3,000–39,000 ft, remembered per browser). 1,000-ft steps when the cutoff is 12,000 ft or lower. Winds come from the NOAA GFS / RRFS models via Open-Meteo and are only fetched again when Open-Meteo reports a new model run (every 6 h, plus a 10-minute settle time), using its free metadata files; the panel shows which GFS run you're looking at. Requests to Open-Meteo are limited to 2 at a time server-wide.
 - **METAR trend:** the last 6 hours of observations for each airport as colored tiles, with ceiling/visibility trend arrows
 - **Minimums:** current conditions, TAF periods and the trend are checked against your choice of minimums, with Green / Amber / Amber Critical / Red bands. Day vs night is worked out per airport from civil twilight (14 CFR 1.1).

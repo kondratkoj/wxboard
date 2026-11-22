@@ -295,6 +295,10 @@ details.raw-toggle[open] > summary { margin-bottom: 4px; display: inline-block; 
 .hchip.on { border-color: var(--warn); }
 .hchip.off { opacity: .45; text-decoration: line-through; }
 .hchip .count { background: none; padding: 0 0 0 2px; color: var(--muted); }
+/* NOTAM severity filter chips */
+.hchip.npri-red.on { border-color: var(--ifr); }
+.hchip.npri-amber.on { border-color: var(--warn); }
+.hchip.npri-normal.on { border-color: var(--muted); }
 
 /* Airport-level fold for NOTAMs */
 details.napt { margin: 0; padding: 10px 14px 6px; }
