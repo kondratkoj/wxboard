@@ -721,9 +721,10 @@
   const infoPop = document.createElement('div');
   infoPop.id = 'infoPop'; infoPop.setAttribute('role', 'tooltip');
   document.body.appendChild(infoPop);
-  let infoPinned = null, infoHideTimer = null;
+  let infoPinned = null, infoHideTimer = null, infoAnchor = null;
   function showInfo(i) {
     clearTimeout(infoHideTimer);
+    infoAnchor = i;
     infoPop.innerHTML = decodeURIComponent(i.dataset.info || '');
     infoPop.classList.add('on');
     const r = i.getBoundingClientRect();
@@ -733,8 +734,21 @@
     infoPop.style.top = Math.max(8, Math.min(r.top - 8, innerHeight - infoPop.offsetHeight - 8)) + 'px';
   }
   const hideInfo = () => { if (!infoPinned) infoHideTimer = setTimeout(() => infoPop.classList.remove('on'), 150); };
+  // A background refresh redraws the panels. If the element the popover belongs to is replaced while the mouse is on
+  // it, the browser never sends "mouse left" for it, so the popover would stay up. Close it when its element is gone.
+  function dropOrphanInfo() {
+    if (!infoPop.classList.contains('on') || !infoAnchor || infoAnchor.isConnected) return;
+    infoPinned = null; infoAnchor = null; clearTimeout(infoHideTimer); infoPop.classList.remove('on');
+  }
+  setInterval(dropOrphanInfo, 500);
   const POP_SEL = '.info, [data-info]';
-  document.addEventListener('mouseover', (e) => { const i = e.target.closest(POP_SEL); if (i) showInfo(i); else if (e.target.closest('#infoPop')) clearTimeout(infoHideTimer); });
+  document.addEventListener('mouseover', (e) => {
+    dropOrphanInfo();
+    const i = e.target.closest(POP_SEL);
+    if (i) showInfo(i);
+    else if (e.target.closest('#infoPop')) clearTimeout(infoHideTimer);
+    else if (infoPop.classList.contains('on')) hideInfo(); // mouse is somewhere unrelated: close (unless pinned)
+  });
   document.addEventListener('mouseout', (e) => { if (e.target.closest(POP_SEL) || e.target.closest('#infoPop')) hideInfo(); });
   document.addEventListener('focusin', (e) => { const i = e.target.closest(POP_SEL); if (i) showInfo(i); });
   document.addEventListener('focusout', (e) => { if (e.target.closest(POP_SEL)) hideInfo(); });
@@ -744,7 +758,7 @@
     if (i) { infoPinned = infoPinned === i ? null : i; if (infoPinned) showInfo(i); else infoPop.classList.remove('on'); e.stopPropagation(); return; }
     if (!e.target.closest('#infoPop')) { infoPinned = null; infoPop.classList.remove('on'); }
   });
-  addEventListener('scroll', () => { if (infoPinned) showInfo(infoPinned); else infoPop.classList.remove('on'); }, { passive: true });
+  addEventListener('scroll', () => { dropOrphanInfo(); if (infoPinned) showInfo(infoPinned); else infoPop.classList.remove('on'); }, { passive: true });
   const LAMP_INFO = `<b>LAMP: Localized Aviation MOS Program</b><br>
     NOAA computer guidance that combines the latest observations (METARs, radar, lightning) with model output and statistically
     forecasts ceiling, visibility, wind and precipitation for individual airports, every hour.
