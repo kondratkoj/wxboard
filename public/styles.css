@@ -509,3 +509,41 @@ html { scroll-padding-top: var(--hdr, 90px); }
 .jumpbar a.jb:hover { border-color: var(--accent); }
 .jumpbar a.jb.min { color: var(--muted); border-style: dashed; }
 .jumpbar .count { background: var(--panel2); border-radius: 999px; padding: 0 6px; font-size: 11px; color: var(--muted); }
+/* ---- Phones (700px wide and under) ---- */
+@media (max-width: 700px) {
+  /* Header: only the Jump-to row stays pinned while scrolling; the rest scrolls away. --top-hide is set in app.js. */
+  .top { top: calc(-1 * var(--top-hide, 0px)); gap: 8px; padding: 8px 10px; }
+  html { scroll-padding-top: var(--hdr-phone, 56px); }
+  .brand { order: 0; font-size: 20px; padding-bottom: 0; }
+  .clock { order: 1; margin-left: auto; }
+  .zulu { font-size: 17px; }
+  .usermenu { order: 2; padding-bottom: 0; }
+  .area-form { order: 3; flex-basis: 100%; min-width: 0; gap: 6px; }
+  .fld.grow { min-width: 0; flex: 1 1 60%; }
+  .fld.small input { width: 72px; }
+  .area-form .btn { padding: 6px 10px; font-size: 13px; }
+  .area-form .chk { padding: 6px 2px; }
+  /* Jump-to: one row that scrolls sideways instead of four rows */
+  .jumpbar { order: 4; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; margin: 0 -10px; padding: 0 10px 2px; }
+  .jumpbar::-webkit-scrollbar { display: none; }
+  .jumpbar .jb-lbl { display: none; }
+  .jumpbar a.jb { flex: none; white-space: nowrap; }
+
+  /* Less edge padding so the content gets the width */
+  main { padding: 8px 6px 20px; gap: 10px; }
+  .saved { padding: 6px 8px 0; }
+  .banner { margin: 8px 8px 0; }
+  .panel > h3 { padding: 9px 10px; }
+  .panel .body, .panel[data-id="summary"] > .pbody { padding: 10px; }
+  .foot { padding: 12px 10px 24px; }
+
+  /* Shift outlook: a narrower label column so more hours fit across the screen */
+  .otable .olab { max-width: 96px; padding: 3px 4px 3px 8px; font-size: 11px; }
+  .otable tbody.obody-apt .olab { padding-left: 8px; }
+  .otable tbody.obody-area tr:not(.ogrp) th.olab { padding-left: 6px; }
+  .otable tr.ogrp th { padding: 12px 8px 4px !important; }
+  .otable thead .oh { min-width: 36px; }
+
+  /* Map: fit the screen instead of a fixed 600px */
+  #map, #gfaSlot { height: min(600px, 65vh) !important; }
+}

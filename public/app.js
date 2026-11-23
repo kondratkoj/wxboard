@@ -733,7 +733,9 @@
     infoPop.style.left = left + 'px';
     infoPop.style.top = Math.max(8, Math.min(r.top - 8, innerHeight - infoPop.offsetHeight - 8)) + 'px';
   }
-  const hideInfo = () => { if (!infoPinned) infoHideTimer = setTimeout(() => infoPop.classList.remove('on'), 150); };
+  // Only one close timer at a time (a second one would be left running and close the next popover), and a pinned
+  // popover is never closed by it.
+  const hideInfo = () => { if (infoPinned) return; clearTimeout(infoHideTimer); infoHideTimer = setTimeout(() => { if (!infoPinned) infoPop.classList.remove('on'); }, 150); };
   // A background refresh redraws the panels. If the element the popover belongs to is replaced while the mouse is on
   // it, the browser never sends "mouse left" for it, so the popover would stay up. Close it when its element is gone.
   function dropOrphanInfo() {
@@ -742,6 +744,17 @@
   }
   setInterval(dropOrphanInfo, 500);
   const POP_SEL = '.info, [data-info]';
+  // Touch screens have no hover, so the browser's own title tooltips never show there. On those screens, tapping
+  // something that has a title turns that title into the shared popover (the click handler below then shows it).
+  if (window.matchMedia && matchMedia('(hover: none)').matches) {
+    document.addEventListener('click', (e) => {
+      if (e.target.closest(POP_SEL)) return;
+      const t = e.target.closest('[title]');
+      if (!t || !t.title.trim() || t.closest('a[href], button, input, select, textarea, label, summary, .leaflet-container')) return;
+      t.dataset.info = encodeURIComponent(esc(t.title));
+      t.removeAttribute('title');
+    }, true);
+  }
   document.addEventListener('mouseover', (e) => {
     dropOrphanInfo();
     const i = e.target.closest(POP_SEL);
@@ -1179,9 +1192,19 @@
   (() => {
     const top = document.querySelector('header.top');
     if (!top) return;
-    const set = () => document.documentElement.style.setProperty('--hdr', `${Math.ceil(top.getBoundingClientRect().height) + 8}px`);
+    const set = () => {
+      const h = Math.ceil(top.getBoundingClientRect().height);
+      document.documentElement.style.setProperty('--hdr', `${h + 8}px`);
+      // Phones: only the Jump-to row stays pinned; the rest of the header scrolls away (styles.css, max-width 700px).
+      const jb = document.getElementById('jumpbar');
+      const jbH = jb && !jb.hidden ? Math.ceil(jb.getBoundingClientRect().height) : 0;
+      const pinned = jbH ? jbH + 12 : 0; // the jump row plus a little of the header's bottom padding
+      document.documentElement.style.setProperty('--top-hide', `${Math.max(0, h - pinned)}px`);
+      document.documentElement.style.setProperty('--hdr-phone', `${pinned + 8}px`);
+    };
     set();
-    if (window.ResizeObserver) new ResizeObserver(set).observe(top); else addEventListener('resize', set);
+    if (window.ResizeObserver) { const ro = new ResizeObserver(set); ro.observe(top); const jb = document.getElementById('jumpbar'); if (jb) ro.observe(jb); }
+    else addEventListener('resize', set);
   })();
 
   function setCollapsed(sec, on) {
