@@ -845,7 +845,7 @@
       let worst = null; // {level, from, to, src}, set below from shiftWorst()
       const t = tafBy.get(a.id);
       if (t) {
-        row('TAF', cols.map((c) => {
+        row(`<a href="#" class="jump otaf-link" data-jump="taf:${esc(a.id)}" ${popAttr(`Show the ${a.id} TAF in METAR and TAFs`)}>TAF</a>`, cols.map((c) => {
           const { prevailing: p, cond } = tafAt(t, c + HR / 2);
           if (!p) return `<td class="ocell${past(c)}"></td>`;
           const r = riskAt(p.ceilingFt, p.visSM, c + HR / 2, a.lat, a.lon);
@@ -1362,6 +1362,17 @@
         saveAptFold();
       }
       el = d || sec;
+    }
+    if (kind === 'taf') {
+      // Open this airport's TAF in METAR and TAFs (decoded table at least) and scroll to the start of the TAF part.
+      const sec = openPanel('airports');
+      const d = sec && sec.querySelector(`details.afold-apt[data-afold="${CSS.escape(arg)}"]`);
+      if (d) {
+        d.open = true; aptFold[arg] = true;
+        const tbl = d.querySelector(`details[data-afold="${CSS.escape(arg)}|taftable"]`); if (tbl) { tbl.open = true; aptFold[`${arg}|taftable`] = true; }
+        saveAptFold();
+      }
+      el = (d && d.querySelector(`details[data-afold="${CSS.escape(arg)}|tafraw"]`)) || d || sec;
     }
     if (kind === 'notams') {
       // Show your airports' NOTAMs with the critical ones visible: switch to "Your airports" and "All", open those groups.
