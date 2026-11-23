@@ -1846,7 +1846,9 @@
     const hz = (geom, color, label) => {
       if (!geom) return;
       try {
-        L.geoJSON(geom, { style: { color, weight: 1.5, fillOpacity: 0.12 } }).bindTooltip(esc(label)).addTo(mapLayers);
+        // sticky: the label follows the mouse. Without it Leaflet pins the label to the middle of the whole
+        // shape, which for a large area (G-AIRMETs especially) is often off the visible map.
+        L.geoJSON(geom, { style: { color, weight: 1.5, fillOpacity: 0.12 } }).bindTooltip(esc(label), { sticky: true }).addTo(mapLayers);
       } catch {}
     };
     if (b.sigmets.ok) b.sigmets.data.filter((s) => hazShown(s.hazard)).forEach((s) => hz(s.geometry, /CONV/.test(s.hazard) ? '#ff4d4d' : '#ffb547', `${s.kind} ${s.hazard}`));
