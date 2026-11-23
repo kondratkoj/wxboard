@@ -509,39 +509,63 @@ html { scroll-padding-top: var(--hdr, 90px); }
 .jumpbar a.jb:hover { border-color: var(--accent); }
 .jumpbar a.jb.min { color: var(--muted); border-style: dashed; }
 .jumpbar .count { background: var(--panel2); border-radius: 999px; padding: 0 6px; font-size: 11px; color: var(--muted); }
+/* Line break inside the header form, used on phones only */
+.area-form .brk { display: none; }
+
 /* ---- Phones and tablets (1200px wide and under, e.g. iPads except the 13" in landscape) ---- */
 @media (max-width: 1200px) {
   /* Header: only the Jump-to row stays pinned while scrolling; the rest scrolls away. --top-hide is set in app.js. */
   .top { top: calc(-1 * var(--top-hide, 0px)); }
   html { scroll-padding-top: var(--hdr-phone, 56px); }
   /* Jump-to: one row that scrolls sideways instead of wrapping */
-  .jumpbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; margin: -2px -16px 0; padding: 0 16px 2px; }
+  .jumpbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; flex-basis: calc(100% + 32px); margin: -2px -16px 0; padding: 0 16px 2px; }
   .jumpbar::-webkit-scrollbar { display: none; }
   .jumpbar a.jb, .jumpbar .jb-lbl { flex: none; white-space: nowrap; }
+  /* Header rows: logo, clock and account links / airports, radius, Route / buttons / Jump-to */
+  .top { align-items: center; row-gap: 8px; }
+  .brand { order: 0; padding-bottom: 0; }
+  .clock { order: 1; margin-left: auto; }
+  .usermenu { order: 2; padding-bottom: 0; }
+  .usermenu:empty { display: none; }
+  .usermenu a, .usermenu .linkbtn { text-decoration: none; }
+  .area-form { order: 3; flex-basis: 100%; min-width: 0; align-items: flex-end; }
+  .fld.grow { min-width: 0; flex: 1 1 0; }
+  .area-form .brk { display: block; flex-basis: 100%; height: 0; }
+  .jumpbar { order: 4; }
+  /* Notices inside the board line up with the panels */
+  main .banner { margin: 0; }
 }
 
 /* ---- Phones (700px wide and under) ---- */
 @media (max-width: 700px) {
-  .top { gap: 8px; padding: 8px 10px; }
+  /* Everything lines up on one 8px left/right edge. Header rows: logo + clock / account links / airports,
+     radius, Route / buttons / Jump-to. */
+  .top { gap: 8px; padding: 8px 8px 6px; align-items: center; }
   .brand { order: 0; font-size: 20px; padding-bottom: 0; }
-  .clock { order: 1; margin-left: auto; }
+  .clock { order: 1; margin-left: auto; line-height: 1.2; }
   .zulu { font-size: 17px; }
-  .usermenu { order: 2; padding-bottom: 0; }
-  .area-form { order: 3; flex-basis: 100%; min-width: 0; gap: 6px; }
-  .fld.grow { min-width: 0; flex: 1 1 60%; }
-  .fld.small input { width: 72px; }
+  .usermenu { order: 2; flex-basis: 100%; padding-bottom: 0; gap: 14px; margin-top: -4px; }
+  .usermenu:empty { display: none; }
+  .usermenu a, .usermenu .linkbtn { text-decoration: none; }
+  .area-form { order: 3; flex-basis: 100%; min-width: 0; gap: 6px; align-items: flex-end; }
+  .fld.grow { min-width: 0; flex: 1 1 0; }
+  .fld.small input { width: 64px; }
+  .area-form .chk { padding: 8px 0 8px 2px; }
+  .area-form .brk { display: block; flex-basis: 100%; height: 0; }
   .area-form .btn { padding: 6px 10px; font-size: 13px; }
-  .area-form .chk { padding: 6px 2px; }
-  .jumpbar { order: 4; margin: 0 -10px; padding: 0 10px 2px; }
+  .jumpbar { order: 4; flex-basis: calc(100% + 16px); margin: 0 -8px; padding: 0 8px 2px; }
   .jumpbar .jb-lbl { display: none; }
 
-  /* Less edge padding so the content gets the width */
-  main { padding: 8px 6px 20px; gap: 10px; }
-  .saved { padding: 6px 8px 0; }
+  /* Same 8px edge for everything below the header */
+  main { padding: 8px 8px 20px; gap: 10px; }
+  .saved { padding: 8px 8px 0; }
   .banner { margin: 8px 8px 0; }
+  main .banner { margin: 0; }
   .panel > h3 { padding: 9px 10px; }
   .panel .body, .panel[data-id="summary"] > .pbody { padding: 10px; }
-  .foot { padding: 12px 10px 24px; }
+  .tools { padding: 8px 10px; gap: 6px 12px; }
+  .tools .chk { padding: 2px 0; }
+  .foot { padding: 12px 8px 24px; }
 
   /* Shift outlook: a narrower label column so more hours fit across the screen */
   .otable .olab { max-width: 96px; padding: 3px 4px 3px 8px; font-size: 11px; }
