@@ -20,13 +20,13 @@
         <span>Radius nm</span>
         <input id="radius" name="radius" type="number" min="5" max="300" step="5" value="30">
       </label>
-      <label class="chk" title="Treat the airports as a route, in order, and check a corridor along it">
+      <label class="chk" data-info="Treat the airports as a route, in order, and check a corridor along it">
         <input id="route" type="checkbox"> Route
       </label>
       <span class="brk" aria-hidden="true"></span>
       <button type="submit" class="btn primary">Brief</button>
-      <button type="button" id="saveArea" class="btn" title="Save this area as a quick pick">Save</button>
-      <button type="button" id="minsBtn" class="btn" title="Weather minimums and risk bands">Minimums</button>
+      <button type="button" id="saveArea" class="btn" data-info="Save this area as a quick pick">Save</button>
+      <button type="button" id="minsBtn" class="btn" data-info="Weather minimums and risk bands">Minimums</button>
       <button type="button" id="newsBtn" class="btn news-btn" aria-label="What's new in wxboard">What's new</button>
     </form>
     <div class="clock">

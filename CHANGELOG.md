@@ -4,6 +4,10 @@ Shown on the site under **What's new**. Newest day first. One `## YYYY-MM-DD` he
 in plain language for pilots. Start a bullet with `[!]` when the change affects how a brief reads (what a badge,
 color, tag or number means), so it's tagged on the page. Only `**bold**`, `*italic*` and `` `code` `` formatting is shown.
 
+## 2026-11-26
+- **Hover help is faster everywhere:** the shift outlook cells, buttons, chips and the header controls now use the instant popup instead of the browser's slow tooltip. Plain help text closes as soon as the mouse leaves, and moving across the shift outlook goes straight to the next hour instead of getting stuck on the popup.
+- **Fixed:** clicking a button that has help (for example the **wxboard map** tab) no longer leaves its popup stuck open. Clicking a small **i** still pins its popup until you click elsewhere.
+
 ## 2026-11-22
 - **What's new:** this list. The button in the header gets a dot when something has changed since you last opened it.
 - **NOTAMs:** new **Show: Critical / Caution / Non-critical** buttons pick which levels are listed, in any combination, remembered per browser. The alert strip and the shift outlook still show every NOTAM, and the alert strip's critical-NOTAM link turns Critical back on.

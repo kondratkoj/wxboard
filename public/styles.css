@@ -478,6 +478,8 @@ details.osum:not([open]) { padding-bottom: 4px; }
 #infoPop { display: none; position: fixed; z-index: 5000; width: 340px; max-width: 80vw; background: #10151c; border: 1px solid var(--accent);
   border-radius: 8px; padding: 10px 12px; box-shadow: 0 12px 30px #000c; font: 400 12.5px/1.45 var(--sans); color: var(--text); }
 #infoPop.on { display: block; }
+#infoPop.passive { pointer-events: none; }
+#infoPop .ptext { white-space: pre-wrap; word-break: break-word; }
 .obar-lab { cursor: help; }
 .obar-lab:hover, .obar-lab:focus { color: var(--accent); outline: none; }
 #infoPop pre.raw { font-size: 11.5px; }

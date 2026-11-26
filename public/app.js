@@ -726,6 +726,9 @@
     clearTimeout(infoHideTimer);
     infoAnchor = i;
     infoPop.innerHTML = decodeURIComponent(i.dataset.info || '');
+    // Plain help text lets the mouse pass through, so moving across a table (e.g. the shift outlook) goes straight
+    // to the next cell instead of getting stuck on the popover. Popovers with links or a scroll box stay reachable.
+    infoPop.classList.toggle('passive', !infoPop.querySelector('a, button, input, select, [style*="overflow"]'));
     infoPop.classList.add('on');
     const r = i.getBoundingClientRect();
     const w = Math.min(340, innerWidth * 0.8);
@@ -735,7 +738,7 @@
   }
   // Only one close timer at a time (a second one would be left running and close the next popover), and a pinned
   // popover is never closed by it.
-  const hideInfo = () => { if (infoPinned) return; clearTimeout(infoHideTimer); infoHideTimer = setTimeout(() => { if (!infoPinned) infoPop.classList.remove('on'); }, 150); };
+  const hideInfo = () => { if (infoPinned) return; clearTimeout(infoHideTimer); infoHideTimer = setTimeout(() => { if (!infoPinned) infoPop.classList.remove('on'); }, infoPop.classList.contains('passive') ? 0 : 150); }; // plain text closes at once; with links, 150 ms to reach it
   // A background refresh redraws the panels. If the element the popover belongs to is replaced while the mouse is on
   // it, the browser never sends "mouse left" for it, so the popover would stay up. Close it when its element is gone.
   function dropOrphanInfo() {
@@ -744,6 +747,7 @@
   }
   setInterval(dropOrphanInfo, 500);
   const POP_SEL = '.info, [data-info]';
+  const HOVER = !!(window.matchMedia && matchMedia('(hover: hover)').matches);
   // Touch screens have no hover, so the browser's own title tooltips never show there. On those screens, tapping
   // something that has a title turns that title into the shared popover (the click handler below then shows it).
   if (window.matchMedia && matchMedia('(hover: none)').matches) {
@@ -767,7 +771,11 @@
   document.addEventListener('focusout', (e) => { if (e.target.closest(POP_SEL)) hideInfo(); });
   document.addEventListener('click', (e) => {
     const i = e.target.closest(POP_SEL);
-    if (i && i.matches('a[href], .chip')) { infoPinned = null; infoPop.classList.remove('on'); return; } // a link or area chip: just follow it
+    // A link, button or other control just does its job and the popover closes. Before, clicking one (the map tabs,
+    // for example) pinned its popover, and it stayed up after the mouse left.
+    if (i && (i.matches('a[href], button, input, select, textarea, label, summary, .chip, .grip') || i.closest('button, summary, a[href]'))) { infoPinned = null; clearTimeout(infoHideTimer); infoPop.classList.remove('on'); return; }
+    // With a mouse, hover already shows the help, so only the small "i" buttons pin on click. Touch screens pin anything.
+    if (i && HOVER && !i.matches('.info')) return;
     if (i) { infoPinned = infoPinned === i ? null : i; if (infoPinned) showInfo(i); else infoPop.classList.remove('on'); e.stopPropagation(); return; }
     if (!e.target.closest('#infoPop')) { infoPinned = null; infoPop.classList.remove('on'); }
   });
@@ -845,7 +853,7 @@
       row('Day / night', cols.map((c) => {
         const ph = phaseAt(c + HR / 2, a0.lat, a0.lon);
         const ev = SUN.events(c, c + HR, a0.lat, a0.lon).filter((e) => e.type === 'dusk' || e.type === 'dawn');
-        return `<td class="ocell ${ph === 'night' ? 'onight' : 'oday'}${past(c)}" title="${ev.length ? (ev[0].type === 'dusk' ? 'Night begins ' : 'Night ends ') + lt(ev[0].at) : ph}">${ev.length ? (ev[0].type === 'dusk' ? '◐' : '◑') : ''}</td>`;
+        return `<td class="ocell ${ph === 'night' ? 'onight' : 'oday'}${past(c)}" ${tipAttr(ev.length ? (ev[0].type === 'dusk' ? 'Night begins ' : 'Night ends ') + lt(ev[0].at) : ph)}>${ev.length ? (ev[0].type === 'dusk' ? '◐' : '◑') : ''}</td>`;
       }));
     }
 
@@ -866,7 +874,7 @@
             .reduce((w, q) => (!w || LVL(q.level) > LVL(w.level) ? q : w), null);
           const cls = r ? `risk-bg-${r.level}` : `cat-bg-${p.fltCat || 'NA'}`;
           const tip = `${clouds(p.clouds, p.vertVis)} · ${vis(p.visib)}${p.wxString ? ' ' + p.wxString : ''}${r ? ` · ${r.label} (${r.lim.label})` : ''}${cond.length ? ` · plus ${cond.map((q) => (q.change === 'PROB' ? 'PROB' + (q.probability || '') : q.change) + ' ' + vis(q.visib) + ' ' + clouds(q.clouds, q.vertVis)).join('; ')}` : ''}`;
-          return `<td class="ocell ${cls}${past(c)}" title="${esc(tip)}">${p.ceilingFt == null ? '' : Math.round(p.ceilingFt / 100)}${worstCond && (!r || LVL(worstCond.level) > LVL(r.level)) ? `<span class="otempo risk-bg-${worstCond.level}" title="TEMPO/PROB worse">T</span>` : ''}</td>`;
+          return `<td class="ocell ${cls}${past(c)}" ${tipAttr(tip)}>${p.ceilingFt == null ? '' : Math.round(p.ceilingFt / 100)}${worstCond && (!r || LVL(worstCond.level) > LVL(r.level)) ? `<span class="otempo risk-bg-${worstCond.level}" ${tipAttr('TEMPO/PROB worse')}>T</span>` : ''}</td>`;
         }));
       }
       const L = lampBy[a.id];
@@ -880,7 +888,7 @@
           const split = lo && hi && lo.level !== hi.level;
           const cls = lo ? `risk-bg-${lo.level}` : '';
           const tip = `Ceiling ${r0.ceilText} ft · Vis ${r0.visText} SM${r0.obv && r0.obv !== 'N' ? ' ' + r0.obv : ''}${r0.p01 != null ? ` · precip ${Math.round(r0.p01)}%` : r0.pop != null ? ` · precip ${r0.pop}%` : ''}${r0.ltg ? ` · lightning ${Math.round(r0.ltg)}%` : ''}${r0.conv ? ` · convection ${Math.round(r0.conv)}%` : ''}${lo ? ` · ${split ? `between ${hi.label} and ${lo.label}` : lo.label} (${lo.lim.label})` : ''}`;
-          return `<td class="ocell ${cls}${split ? ' osplit split-' + hi.level : ''}${past(c)}" title="${esc(tip)}"><div>${LAMP_CIG[r0.cigCat] || '?'}</div><div class="muted">${LAMP_VIS[r0.visCat] || '?'}</div></td>`;
+          return `<td class="ocell ${cls}${split ? ' osplit split-' + hi.level : ''}${past(c)}" ${tipAttr(tip)}><div>${LAMP_CIG[r0.cigCat] || '?'}</div><div class="muted">${LAMP_VIS[r0.visCat] || '?'}</div></td>`;
         }));
       }
       const W = windBy.get(a.id);
@@ -890,13 +898,13 @@
           if (Math.abs(W.times[i] - (c + HR / 2)) > 2 * HR) return `<td class="ocell${past(c)}"></td>`;
           const w = (W.elevFt ?? 0) + 500 > outlook.alt ? null : interpAt(W.profiles[i], outlook.alt);
           if (!w) return `<td class="ocell muted${past(c)}">—</td>`;
-          return `<td class="ocell mono ${w.spd >= 50 ? 'w-red' : w.spd >= 30 ? 'w-amber' : ''}${past(c)}" title="${pad(w.dir, 3)}° / ${w.spd} kt${w.temp != null ? ' · ' + w.temp + '°C' : ''}">${pad(Math.round(w.dir / 10), 2)}<div>${w.spd}</div></td>`;
+          return `<td class="ocell mono ${w.spd >= 50 ? 'w-red' : w.spd >= 30 ? 'w-amber' : ''}${past(c)}" ${tipAttr(`${pad(w.dir, 3)}° / ${w.spd} kt${w.temp != null ? ' · ' + w.temp + '°C' : ''}`)}>${pad(Math.round(w.dir / 10), 2)}<div>${w.spd}</div></td>`;
         }));
       }
       // Precip chance: NWS hourly forecast first; if NWS has none for this airport, LAMP's 1-h precip probability.
       const F = fcBy.get(a.id);
       const lampRow = (c) => (L && L.rows.length ? L.rows.find((x) => Math.abs(x.t - (c + HR)) < 31 * 60e3) : null);
-      const popCell = (c, pop, tip) => `<td class="ocell${pop >= 50 ? ' o-pop-hi' : pop >= 30 ? ' o-pop-mid' : ''}${past(c)}" title="${esc(tip)}">${pop}</td>`;
+      const popCell = (c, pop, tip) => `<td class="ocell${pop >= 50 ? ' o-pop-hi' : pop >= 30 ? ' o-pop-mid' : ''}${past(c)}" ${tipAttr(tip)}>${pop}</td>`;
       if (F && F.hourly && F.hourly.length) {
         row(`Precip % <span class="muted small">NWS</span>`, cols.map((c) => {
           const h = F.hourly.find((x) => Math.abs(x.t - c) < 31 * 60e3);
@@ -905,14 +913,14 @@
         }));
       } else if (L && L.rows.some((x) => x.p01 != null)) {
         const why = !F ? 'NWS forecast not loaded for this airport' : F.error ? `NWS: ${F.error}` : F.hourlyError ? `NWS hourly: ${F.hourlyError}` : 'NWS hourly forecast unavailable';
-        row(`Precip % <span class="muted small" title="${esc(why)}; showing LAMP">LAMP</span>`, cols.map((c) => {
+        row(`Precip % <span class="muted small" ${tipAttr(why + '; showing LAMP')}>LAMP</span>`, cols.map((c) => {
           const r0 = lampRow(c);
           if (!r0 || r0.p01 == null) return `<td class="ocell${past(c)}"></td>`;
           return popCell(c, Math.round(r0.p01), `LAMP: ${Math.round(r0.p01)}% chance of measurable precip in the hour${r0.ltg != null ? ` · lightning ${Math.round(r0.ltg)}%` : ''} (${why})`);
         }));
       } else {
         const why = !F ? 'NWS forecast not loaded' : F.error || F.hourlyError || 'no hourly data';
-        row(`Precip % <span class="muted small">n/a</span>`, cols.map((c, i) => `<td class="ocell muted${past(c)}" title="${esc(why)}">${i === 0 ? '—' : ''}</td>`));
+        row(`Precip % <span class="muted small">n/a</span>`, cols.map((c, i) => `<td class="ocell muted${past(c)}" ${tipAttr(why)}>${i === 0 ? '—' : ''}</td>`));
       }
       if (!t && !(L && L.rows.length)) row('<span class="muted">No TAF or LAMP</span>', cols.map((c) => `<td class="ocell${past(c)}"></td>`));
       // Folded header and summary use the same worst-case calculation as the airport card's Shift badge.
@@ -969,7 +977,7 @@
           const on = bar.unknownTimes ? true : spans.some(([f, tt]) => overlaps(f, tt, c));
           if (!on) return `<td class="ocell${past(c)}"></td>`;
           const lab = !labelled; labelled = true;
-          return `<td class="ocell ${bar.cls}${bar.unknownTimes ? ' ounknown' : ''}${past(c)}" title="${esc(bar.tip || bar.label)}">${lab && bar.from && bar.from > cols[0] ? '▸' : ''}</td>`;
+          return `<td class="ocell ${bar.cls}${bar.unknownTimes ? ' ounknown' : ''}${past(c)}" ${tipAttr(bar.tip || bar.label)}>${lab && bar.from && bar.from > cols[0] ? '▸' : ''}</td>`;
         }));
         const first = bar.spans ? null : bar.from;
         if (bar.notam && first && first >= cols[0]) summary.push(`<span class="alert ${bar.cls === 'obar-red' ? 'red' : 'hot'}">${esc(bar.label.slice(0, 60))} from ${hhL(first)}L</span>`);
@@ -1016,6 +1024,8 @@
 
   // Popup attribute for plain text (uses the shared instant popover instead of the slow native tooltip).
   const popAttr = (text) => `data-info="${encodeURIComponent(esc(text))}" tabindex="0"`;
+  // Same popover for plain text on things that already take clicks or sit in dense tables (no extra tab stop).
+  const tipAttr = (text) => `data-info="${encodeURIComponent('<div class="ptext">' + esc(text) + '</div>')}"`;
 
   // ---------- card helpers: recent trend + shift worst-case ----------
   // Ceiling/visibility change over roughly the last 3 hours of METARs (oldest obs at least 2.5 h back if available).
@@ -1102,7 +1112,7 @@
   // id: stable key used for layout; title shown in the header.
   function panel(id, title, count, inner, right = '') {
     return `<section class="panel${isCollapsed(id) ? ' collapsed' : ''}" data-id="${id}">
-      <h3><span class="grip" title="Drag to move">⠿</span><span class="ttl">${esc(title)}</span>${count != null ? ` <span class="count">${count}</span>` : ''}${right ? `<span class="right">${right}</span>` : ''}<button class="fold" title="Minimize / expand" aria-label="Minimize or expand">${isCollapsed(id) ? '▸' : '▾'}</button></h3>
+      <h3><span class="grip" ${tipAttr('Drag to move')}>⠿</span><span class="ttl">${esc(title)}</span>${count != null ? ` <span class="count">${count}</span>` : ''}${right ? `<span class="right">${right}</span>` : ''}<button class="fold" ${tipAttr('Minimize / expand')} aria-label="Minimize or expand">${isCollapsed(id) ? '▸' : '▾'}</button></h3>
       <div class="pbody">${inner}</div></section>`;
   }
   const failed = (s) => `<div class="err">Couldn't load: ${esc(s.error)}</div>`;
@@ -1321,7 +1331,7 @@
   // Alert chips. Each one links (data-jump) to the panel/item that explains it.
   function renderAlerts(b) {
     const items = [];
-    const chip = (cls, html, jump, tip) => `<a href="#" class="alert ${cls} jump" data-jump="${esc(jump)}" title="${esc(tip || 'Show details')}">${html}</a>`;
+    const chip = (cls, html, jump, tip) => `<a href="#" class="alert ${cls} jump" data-jump="${esc(jump)}" ${tipAttr(tip || 'Show details')}>${html}</a>`;
     if (b.sigmets.ok) {
       const conv = b.sigmets.data.filter((s) => s.hazard === 'CONVECTIVE' || s.hazard === 'CONV').length;
       if (b.sigmets.data.length) items.push(chip(conv ? 'red' : 'hot', `${b.sigmets.data.length} SIGMET/AIRMET${conv ? ` · ${conv} convective` : ''}`, 'panel:advisories'));
@@ -1477,7 +1487,7 @@
     }).join('');
     if (!b.metars.ok && !b.tafs.ok) return panel('airports', 'METAR and TAFs', null, failed(b.metars));
     const tools = `<div class="tools"><button class="btn sm" data-aptall="0">Minimize airports</button><button class="btn sm" data-aptall="1">Expand airports</button>
-      <button class="btn sm" data-aptraw="1" title="Show or hide every raw TAF">Toggle raw TAFs</button></div>`;
+      <button class="btn sm" data-aptraw="1" ${tipAttr('Show or hide every raw TAF')}>Toggle raw TAFs</button></div>`;
     return panel('airports', 'METAR and TAFs', anchorIds.length, tools + blocks);
   }
   function bindAirportFolds() {
@@ -1575,7 +1585,7 @@
   function whenText(x) {
     const s = Date.parse(x.start), e = Date.parse(x.end), t = Date.now();
     if (Number.isFinite(s) && s > t) return `<span class="tag warn">STARTS ${until(s)}</span> <span class="mono small">${zt(s)}</span>`;
-    if (x.pastEstimatedEnd) return '<span class="tag warn" title="Estimated end time has passed but it has not been cancelled">PAST EST END</span>';
+    if (x.pastEstimatedEnd) return `<span class="tag warn" ${tipAttr('Estimated end time has passed but it has not been cancelled')}>PAST EST END</span>`;
     if (!x.end || x.end === 'PERM') return '<span class="mono small muted">PERM</span>';
     return `<span class="mono small muted">until ${zt(e)}${x.estimated ? ' EST' : ''} · ${until(e).replace('in ', '')} left</span>`;
   }
@@ -1611,7 +1621,7 @@
         const hot = inCat.some((x) => x.pri !== 'normal');
         const open = catOpen.has(key) ? catOpen.get(key) : !(c.collapsed && !hot);
         const cr = inCat.filter((x) => x.pri === 'red').length, ca = inCat.filter((x) => x.pri === 'amber').length;
-        return `<details class="ncat" data-key="${esc(key)}" ${open ? 'open' : ''}><summary><span class="ncat-name">${esc(c.label)}</span> <span class="count">${inCat.length}</span>${cr ? `<span class="dot red" title="${cr} critical"></span>` : ''}${ca ? `<span class="dot amber" title="${ca} caution"></span>` : ''}</summary>
+        return `<details class="ncat" data-key="${esc(key)}" ${open ? 'open' : ''}><summary><span class="ncat-name">${esc(c.label)}</span> <span class="count">${inCat.length}</span>${cr ? `<span class="dot red" ${tipAttr(cr + ' critical')}></span>` : ''}${ca ? `<span class="dot amber" ${tipAttr(ca + ' caution')}></span>` : ''}</summary>
           ${inCat.map(notamItem).join('')}</details>`;
       }).join('');
       const aptKey = `${apt}|*`;
@@ -1646,10 +1656,10 @@
     const nAirport = n.data.items.filter((x) => x.scope === 'airport').length;
     const tools = `<div class="tools">
       <div class="tabs"><button class="tab ${notamScope === 'airport' ? 'on' : ''}" data-scope="airport">Your airports (${nAirport})</button>
-      <button class="tab ${notamScope === 'area' ? 'on' : ''}" data-scope="area" title="Every NOTAM with a location inside the ${n.data.areaRadiusNm} nm area">Whole area (${n.data.items.length})</button></div>
+      <button class="tab ${notamScope === 'area' ? 'on' : ''}" data-scope="area" ${tipAttr(`Every NOTAM with a location inside the ${n.data.areaRadiusNm} nm area`)}>Whole area (${n.data.items.length})</button></div>
       <label class="chk small">In effect <select id="notamWin" class="sel">${NOTAM_WINDOWS.map(([v, l]) => `<option value="${v}" ${String(v) === String(notamWindow) ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <button class="btn sm" id="notamFoldAll" title="Minimize every airport">Minimize airports</button>
-      <button class="btn sm" id="notamOpenAll" title="Expand every airport">Expand airports</button>
+      <button class="btn sm" id="notamFoldAll" ${tipAttr('Minimize every airport')}>Minimize airports</button>
+      <button class="btn sm" id="notamOpenAll" ${tipAttr('Expand every airport')}>Expand airports</button>
     </div>
     <div class="tools" id="notamPriTools">${notamPriChips(b)}</div>${syncLine(n.data.sync)}`;
     const testTag = status.nmsEnv && status.nmsEnv !== 'prod' ? `<span class="tag red">${esc(status.nmsEnv.toUpperCase())} TEST DATA, NOT REAL</span>` : '';
@@ -1793,7 +1803,7 @@
     const counts = {};
     all.forEach((a) => { counts[a.g] = (counts[a.g] || 0) + 1; });
     const chips = HAZ_GROUPS.filter(([id]) => counts[id]).map(([id, label]) =>
-      `<button class="hchip ${hiddenHaz.has(id) ? 'off' : 'on'}" data-haz="${id}" title="${hiddenHaz.has(id) ? 'Show' : 'Hide'} ${esc(label)}">${esc(label)} <span class="count">${counts[id]}</span></button>`).join('');
+      `<button class="hchip ${hiddenHaz.has(id) ? 'off' : 'on'}" data-haz="${id}" ${tipAttr(`${hiddenHaz.has(id) ? 'Show' : 'Hide'} ${label}`)}>${esc(label)} <span class="count">${counts[id]}</span></button>`).join('');
     const shown = all.filter((a) => !hiddenHaz.has(a.g));
     const nHidden = all.length - shown.length;
     const parts = shown.map(({ type, x }) => {
@@ -1853,7 +1863,7 @@
     const blocks = b.forecast.data.map((f) => f.error
       ? `<div class="item"><b>${esc(f.id)}</b> <span class="muted">${esc(f.error)}</span></div>`
       : `<div class="item"><div class="meta"><b class="mono">${esc(f.id)}</b><span class="muted small">${esc(f.place || '')}</span></div>
-        <div class="fcst">${f.periods.map((p) => `<div class="p" title="${esc(p.detail)}"><div class="n">${esc(p.name)}</div>
+        <div class="fcst">${f.periods.map((p) => `<div class="p" ${tipAttr(p.detail)}><div class="n">${esc(p.name)}</div>
           <div class="t">${p.temperature ?? '—'}°${esc(p.unit || '')}</div><div class="small">${esc(p.short)}</div>
           <div class="muted small">${esc(p.wind)}${p.precipChance != null ? ` · ${p.precipChance}% precip` : ''}</div></div>`).join('')}</div></div>`).join('');
     return panel('forecast', 'Area forecast (NWS)', null, blocks);
