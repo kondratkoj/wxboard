@@ -4,7 +4,10 @@
 # Sends the last git COMMIT (not unsaved edits), so commit first. Uses ssh, scp and git, which Windows 10/11 and
 # Git for Windows provide. Like deploy.sh, it leaves the server's own config/, data/ and .env alone (those are
 # never in git) and skips the tests.
-param([string]$Server = $(if ($env:WX_SERVER) { $env:WX_SERVER } else { 'joe@192.168.1.215' }))
+# The VM's Tailscale name, so this only ever reaches your own server, from home or away. Don't use a
+# 192.168.x.x address: other networks (e.g. a crew house) reuse the same numbers for their own devices.
+# Override for one run with:  $env:WX_SERVER='joe@100.x.y.z'; .\deploy.ps1
+param([string]$Server = $(if ($env:WX_SERVER) { $env:WX_SERVER } else { 'joe@wxboard' }))
 
 $Dir = '/opt/wxboard'
 $Tmp = Join-Path $env:TEMP 'wxboard-deploy.tar.gz'
